@@ -1,7 +1,17 @@
 import time
 import re
-import sqlite3
 from datetime import datetime
+from models import Temperature, get_engine
+from sqlalchemy.orm import sessionmaker
+
+
+try:
+    engine = get_engine()
+    Session = sessionmaker(bind=engine)
+    database_connection = True
+except:
+    database_connection = False
+
 
 def read_thermometer(device_id, units='F'):
     """
@@ -36,29 +46,6 @@ def read_thermometer(device_id, units='F'):
     return is_on, out
 
 
-def create_database():
-    """
-    Create and setup the SQLite database
-    :return:
-    """
-
-    temp_table = """CREATE TABLE temperature
-(
-    temperature REAL NOT NULL,
-    record_date TEXT NOT NULL,
-    location TEXT
-);"""
-
-    f = open('./sqlite.db', 'w')
-    f.close()
-
-    conn = sqlite3.connect('./sqlite.db')
-    c = conn.cursor()
-    c.execute(temp_table)
-    conn.commit()
-    conn.close()
-
-
 def record_to_database(record_time, temp, location):
     """
     Insert a record into the temperature table.
@@ -67,19 +54,18 @@ def record_to_database(record_time, temp, location):
     :param location: string
     :return:
     """
+    if not database_connection:
+        raise Exception('Not connected to database')
 
-    conn = sqlite3.connect('./sqlite.db')
-    c = conn.cursor()
+    try:
+        session = Session()
+        new_observation = Temperature(value=temp, record_time=record_time, location=location)
+        session.add(new_observation)
+        session.commit()
+    except:
+        print('Error inserting records')
+        session.rollback()
 
-    insert = "INSERT INTO temperature (temperature, record_date, location) VALUES ({0}, '{1}', '{2}')".format(
-        str(temp),
-        record_time.strftime('%Y-%m-%d %H:%M:%S'),
-        location
-    )
-
-    c.execute(insert)
-    conn.commit()
-    conn.close()
 
 def record_to_csv(record_time, temp, location, file):
     with open(file, 'a+') as f:
@@ -99,13 +85,25 @@ if __name__ == '__main__':
             'Outside (Street)': '28-0416719754ff'
         }
 
+    file_path = '/home/pi/temps.csv'
+
     while True:
+
         for location, device_id in device_ids.iteritems():
+
             try:
                 _, temperature = read_thermometer(device_id)
-                file = '/home/pi/temps.csv'
-                record_to_csv(datetime.now(), temperature, location, file)
+                record_to_csv(datetime.now(), temperature, location, file_path)
+
+                try:
+                    record_to_database(datetime.now(), temperature, location)
+
+                except Exception as e:
+                    print('Error during database insert: ', e)
+
                 print(location, temperature)
+
             except Exception as e:
                 print(e)
+
         time.sleep(10)
