@@ -17,6 +17,9 @@ def read_thermometer(device_id, units='F'):
         line2 = f.readline().strip()
 
     is_on = re.search('[A-Z]+', line1).group()
+    if is_on == 'NO':
+        raise Exception('Sensor {} is offline.'.format(device_id))
+
     temp_raw_string = re.search('(t\=)(\-|)[0-9]+', line2).group()
     temp_raw = re.search('(\-|)[0-9]+', temp_raw_string).group()
 
@@ -68,7 +71,7 @@ def record_to_database(record_time, temp, location):
     conn = sqlite3.connect('./sqlite.db')
     c = conn.cursor()
 
-    insert = """INSERT INTO temperature (temperature, record_date, location) VALUES ({0}, '{1}', '{2}')""".format(
+    insert = "INSERT INTO temperature (temperature, record_date, location) VALUES ({0}, '{1}', '{2}')".format(
         str(temp),
         record_time.strftime('%Y-%m-%d %H:%M:%S'),
         location
@@ -80,7 +83,7 @@ def record_to_database(record_time, temp, location):
 
 def record_to_csv(record_time, temp, location, file):
     with open(file, 'a+') as f:
-        line = """{0},{1},{2}\n""".format(
+        line = "{0},{1},{2}\n".format(
             str(temp),
             record_time.strftime('%Y-%m-%d %H:%M:%S'),
             location
@@ -91,18 +94,18 @@ def record_to_csv(record_time, temp, location, file):
 if __name__ == '__main__':
     device_ids = {
             'Living Room (North Wall)': '28-04165425e4ff',
+            'Living Room (South Wall)': '28-0516710253ff',
+            'Dining Room (North Wall)': '28-051670bfd2ff',
             'Outside (Street)': '28-0416719754ff'
         }
 
     while True:
-        try:
-            for location, device_id in device_ids.iteritems():
+        for location, device_id in device_ids.iteritems():
+            try:
                 _, temperature = read_thermometer(device_id)
                 file = '/home/pi/temps.csv'
                 record_to_csv(datetime.now(), temperature, location, file)
                 print(location, temperature)
-            time.sleep(10)
-        except Exception as e:
-            print('An error occurred')
-            print(e)
-            time.sleep(10)
+            except Exception as e:
+                print(e)
+        time.sleep(10)
