@@ -22,7 +22,7 @@ class Temperature(Base):
 
     def __repr__(self):
         return "<Temperature(value={0}, record_time={1}, location={2})>".format(
-            str(self.value), self.record_time.strftime('%Y-%m%-d %H:%M:%S'), self.location
+            str(self.value), self.record_time.strftime('%Y-%m-%d %H:%M:%S'), self.location
         )
 
 
