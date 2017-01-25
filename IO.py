@@ -13,7 +13,7 @@ except:
     database_connection = False
 
 
-def read_thermometer(device_id, units='F'):
+def read_temp_sensor(device_id, units='F'):
     """
     Read temperature from the sensor and convert to <units>
     :param device_id:
@@ -92,7 +92,7 @@ if __name__ == '__main__':
         for location, device_id in device_ids.iteritems():
 
             try:
-                _, temperature = read_thermometer(device_id)
+                _, temperature = read_temp_sensor(device_id)
                 record_to_csv(datetime.now(), temperature, location, file_path)
 
                 try:
