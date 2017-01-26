@@ -13,7 +13,7 @@ except:
     database_connection = False
 
 
-def read_thermometer(device_id, units='F'):
+def read_temp_sensor(device_id, units='F'):
     """
     Read temperature from the sensor and convert to <units>
     :param device_id:
@@ -79,10 +79,11 @@ def record_to_csv(record_time, temp, location, file):
 
 if __name__ == '__main__':
     device_ids = {
-            'Living Room (North Wall)': '28-04165425e4ff',
-            'Living Room (South Wall)': '28-0516710253ff',
-            'Dining Room (North Wall)': '28-051670bfd2ff',
-            'Outside (Street)': '28-0416719754ff'
+            'Living Room (North Wall)':         '28-04165425e4ff',
+            'Living Room (South Wall)':         '28-0516710253ff',
+            'Dining Room (North Wall)':         '28-051670bfd2ff',
+            'Dining Room (North Wall High)':    '28-0416717d75ff',
+            'Outside (Street)':                 '28-0416719754ff'
         }
 
     file_path = '/home/pi/temps.csv'
@@ -92,7 +93,7 @@ if __name__ == '__main__':
         for location, device_id in device_ids.iteritems():
 
             try:
-                _, temperature = read_thermometer(device_id)
+                _, temperature = read_temp_sensor(device_id)
                 record_to_csv(datetime.now(), temperature, location, file_path)
 
                 try:
