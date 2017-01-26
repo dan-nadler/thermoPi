@@ -45,5 +45,9 @@ def create_standard_plot(hours=24, resolution='60S', interpolation='linear'):
 
 def create_group_by_day_plot(location,  hours=24, resolution='60S', interpolation='linear'):
     df = get_plotting_dataframe(hours, resolution, interpolation)
-    df.pivot_table(values=location, index=df.index.strftime('%H:%M:%S'), columns=df.index.strftime('%d')).plot()
+    df.pivot_table(values=location, index=df.index.strftime('%H:%M:%S'), columns=df.index.strftime('%A, %m/%d')).plot(title=location)
     return plt.gcf()
+
+if __name__ == '__main__':
+    create_group_by_day_plot('Living Room (North Wall)', hours=48+20)
+    plt.show()

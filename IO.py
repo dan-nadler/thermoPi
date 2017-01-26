@@ -79,10 +79,11 @@ def record_to_csv(record_time, temp, location, file):
 
 if __name__ == '__main__':
     device_ids = {
-            'Living Room (North Wall)': '28-04165425e4ff',
-            'Living Room (South Wall)': '28-0516710253ff',
-            'Dining Room (North Wall)': '28-051670bfd2ff',
-            'Outside (Street)': '28-0416719754ff'
+            'Living Room (North Wall)':         '28-04165425e4ff',
+            'Living Room (South Wall)':         '28-0516710253ff',
+            'Dining Room (North Wall)':         '28-051670bfd2ff',
+            'Dining Room (North Wall High)':    '28-0416717d75ff',
+            'Outside (Street)':                 '28-0416719754ff'
         }
 
     file_path = '/home/pi/temps.csv'
