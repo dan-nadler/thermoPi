@@ -1,9 +1,8 @@
-import time
 import re
+import time
 from datetime import datetime
-from models import Temperature, get_engine, Sensor
 from sqlalchemy.orm import sessionmaker
-
+from thermo.common.models import Temperature, get_engine, Sensor
 
 try:
     engine = get_engine()
@@ -69,6 +68,8 @@ def record_to_database(record_time, temp, location):
     except:
         print('Error inserting records')
         session.rollback()
+    finally:
+        session.close()
 
 
 def record_to_csv(record_time, temp, location, file):
@@ -82,15 +83,10 @@ def record_to_csv(record_time, temp, location, file):
 
 
 if __name__ == '__main__':
-    device_ids = {
-            'Living Room (North Wall)':         '28-04165425e4ff',
-            'Living Room (South Wall)':         '28-0516710253ff',
-            'Dining Room (North Wall)':         '28-051670bfd2ff',
-            'Dining Room (North Wall High)':    '28-0416717d75ff',
-            'Outside (Street)':                 '28-0416719754ff'
-        }
 
-    file_path = '/home/pi/temps.csv'
+    session = Session()
+    device_ids = {s.location: s.serial_number for s in session.query(Sensor).all()}
+    session.close()
 
     while True:
 
@@ -98,7 +94,6 @@ if __name__ == '__main__':
 
             try:
                 _, temperature = read_temp_sensor(device_id)
-                record_to_csv(datetime.now(), temperature, location, file_path)
 
                 try:
                     record_to_database(datetime.now(), temperature, location)

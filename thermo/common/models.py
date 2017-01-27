@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from local_settings import DATABASE
+from .local_settings import DATABASE
+
 
 def get_engine():
     connection_string = '{0}://{1}:{2}@{3}:{4}/{5}'.format(
@@ -26,11 +27,13 @@ class Temperature(Base):
             str(self.value), self.record_time.strftime('%Y-%m-%d %H:%M:%S'), str(self.sensor)
         )
 
+
 class Sensor(Base):
     __tablename__ = 'sensor'
     id = Column(Integer, autoincrement=True, primary_key=True)
     location = Column(String(250))
     temperatures = relationship('Temperature')
+    serial_number = Column(String(250))
 
     def __repr__(self):
         return self.location

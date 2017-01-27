@@ -1,9 +1,9 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib as mat
-from models import Temperature, get_engine
 from datetime import datetime, timedelta
+import matplotlib as mat
+import matplotlib.pyplot as plt
+import pandas as pd
 from sqlalchemy.orm import sessionmaker
+from thermo.common.models import Temperature, get_engine
 
 
 def get_dataframe(hours=24):
@@ -49,6 +49,6 @@ def create_group_by_day_plot(location,  hours=24, resolution='60S', interpolatio
     return plt.gcf()
 
 if __name__ == '__main__':
-    # create_group_by_day_plot('Living Room (North Wall)', hours=48+20)
-    create_standard_plot()
+    create_group_by_day_plot('Living Room (South Wall)', hours=72+20)
+    # create_standard_plot()
     plt.show()
