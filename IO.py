@@ -1,7 +1,7 @@
 import time
 import re
 from datetime import datetime
-from models import Temperature, get_engine
+from models import Temperature, get_engine, Sensor
 from sqlalchemy.orm import sessionmaker
 
 
@@ -59,7 +59,11 @@ def record_to_database(record_time, temp, location):
 
     try:
         session = Session()
-        new_observation = Temperature(value=temp, record_time=record_time, location=location)
+        sensors = session.query(Sensor).filter_by(location=location)
+        if sensors.count() == 1:
+            sensor_id = sensors.all()[0].id
+
+        new_observation = Temperature(value=temp, record_time=record_time, location=location, sensor=sensor_id)
         session.add(new_observation)
         session.commit()
     except:

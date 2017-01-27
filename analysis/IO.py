@@ -49,5 +49,6 @@ def create_group_by_day_plot(location,  hours=24, resolution='60S', interpolatio
     return plt.gcf()
 
 if __name__ == '__main__':
-    create_group_by_day_plot('Living Room (North Wall)', hours=48+20)
+    # create_group_by_day_plot('Living Room (North Wall)', hours=48+20)
+    create_standard_plot()
     plt.show()

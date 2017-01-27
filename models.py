@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Float, DateTime, Integer, String
+from sqlalchemy.orm import relationship
 from local_settings import DATABASE
 
 def get_engine():
@@ -18,12 +18,22 @@ class Temperature(Base):
     id = Column(Integer, autoincrement=True)
     value = Column(Float)
     record_time = Column(DateTime, primary_key=True)
-    location = Column(String(250), primary_key=True)
+    location = Column(String(250))
+    sensor = Column(Integer, ForeignKey('sensor.id'), primary_key=True)
 
     def __repr__(self):
         return "<Temperature(value={0}, record_time={1}, location={2})>".format(
-            str(self.value), self.record_time.strftime('%Y-%m-%d %H:%M:%S'), self.location
+            str(self.value), self.record_time.strftime('%Y-%m-%d %H:%M:%S'), str(self.sensor)
         )
+
+class Sensor(Base):
+    __tablename__ = 'sensor'
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    location = Column(String(250))
+    temperatures = relationship('Temperature')
+
+    def __repr__(self):
+        return self.location
 
 
 if __name__ == '__main__':
