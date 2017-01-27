@@ -27,5 +27,7 @@ DATABASE = convert(DATABASE)
 
 Use `python -m thermo.common.models` to create the tables in your database.
 
+Update the `sensor` table with your sensors.
+
 # Usage
-Use `python IO.py` to create a SQLite database and stream temperatures to it every 10 seconds.
+Use `python IO.py` to stream temperatures to the database every 10 seconds.
