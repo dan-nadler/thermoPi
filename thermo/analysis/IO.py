@@ -57,6 +57,6 @@ def create_group_by_day_plot(location, lookback=120, filter_hours=12, resolution
     return plt.gcf()
 
 if __name__ == '__main__':
-    create_group_by_day_plot('Living Room (South Wall)', hours=(24*4)+8)
-    # create_standard_plot(48)
+    # create_group_by_day_plot('Living Room (South Wall)', lookback=(24*4)+8)
+    create_standard_plot(24)
     plt.show()
