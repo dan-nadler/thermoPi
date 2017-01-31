@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 import time
 import pytz
 from flask import Flask, render_template
-from numpy import isnan
 
 
 class Cache:
@@ -36,7 +35,7 @@ class RawDataFrame(Cache):
 
 
 class PlotDataFrame(Cache):
-    def __init__(self, *args, lookback=3, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(PlotDataFrame, self).__init__(*args, **kwargs)
 
     def _get_data(self, lookback=3):
