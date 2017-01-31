@@ -1,9 +1,9 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib as mat
-from models import Temperature, get_engine
 from datetime import datetime, timedelta
+import matplotlib as mat
+import matplotlib.pyplot as plt
+import pandas as pd
 from sqlalchemy.orm import sessionmaker
+from thermo.common.models import Temperature, get_engine
 
 
 def get_dataframe(hours=24):
@@ -43,11 +43,20 @@ def create_standard_plot(hours=24, resolution='60S', interpolation='linear'):
     return plt.gcf()
 
 
-def create_group_by_day_plot(location,  hours=24, resolution='60S', interpolation='linear'):
-    df = get_plotting_dataframe(hours, resolution, interpolation)
-    df.pivot_table(values=location, index=df.index.strftime('%H:%M:%S'), columns=df.index.strftime('%A, %m/%d')).plot(title=location)
+def create_group_by_day_plot(location, lookback=120, filter_hours=12, resolution='60S', interpolation='linear', **kwargs):
+    df = get_plotting_dataframe(lookback, resolution, interpolation)
+
+    start_hour = datetime.now().hour - filter_hours
+    end_hour = datetime.now().hour
+
+    df = df[df.index.hour >= start_hour]
+    df = df[df.index.hour <= end_hour]
+
+    df.pivot_table(values=location, index=df.index.strftime('%H:%M:%S'), columns=df.index.strftime('%A, %m/%d')).plot(title=location, **kwargs)
+
     return plt.gcf()
 
 if __name__ == '__main__':
-    create_group_by_day_plot('Living Room (North Wall)', hours=48+20)
+    # create_group_by_day_plot('Living Room (South Wall)', lookback=(24*4)+8)
+    create_standard_plot(24)
     plt.show()

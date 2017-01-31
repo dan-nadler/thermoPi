@@ -1,8 +1,8 @@
-from sys import stdout
-from models import Temperature, get_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import IntegrityError
 from datetime import datetime
+from sys import stdout
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import sessionmaker
+from ..common.models import Temperature, get_engine
 
 engine = get_engine()
 Session = sessionmaker(bind=engine)
