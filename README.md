@@ -1,6 +1,8 @@
 # thermoPi
 A multi-zone thermostat built using the Raspberry Pi
 
+See https://github.com/dan-nadler/thermoDashboard for a Flask/Zappa app that monitors the database created with by this project.
+
 # Installation
 `python setup.py install`
 
