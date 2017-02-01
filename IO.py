@@ -2,7 +2,7 @@ import re
 import time
 from datetime import datetime
 from sqlalchemy.orm import sessionmaker
-from thermo.common.models import Temperature, get_engine, Sensor
+from thermo.common.models import Temperature, get_engine, Sensor, User
 
 try:
     engine = get_engine()
@@ -83,9 +83,24 @@ def record_to_csv(record_time, temp, location, file):
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('user_id', type=int)
+    parser.add_argument('--unit', type=int, default=1)
+    args = parser.parse_args()
+
+    user_id = args.user_id
+    unit = args.unit
 
     session = Session()
-    device_ids = {s.location: s.serial_number for s in session.query(Sensor).all()}
+    device_ids = {
+        s.location: s.serial_number
+        for s
+        in session.query(Sensor).filter(
+            Sensor.unit==unit,
+            Sensor.user==user_id
+        ).all()
+    }
     session.close()
 
     while True:
