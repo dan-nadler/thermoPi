@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey
+from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, sessionmaker
 from .local_settings import DATABASE
 
 
@@ -10,6 +10,14 @@ def get_engine():
     )
     engine = create_engine(connection_string, echo=False)
     return engine
+
+
+def get_session():
+    engine = get_engine()
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    return session
+
 
 Base = declarative_base()
 
@@ -36,6 +44,7 @@ class Sensor(Base):
     serial_number = Column(String(250))
     user = Column(Integer, ForeignKey('user.id'), index=True)
     unit = Column(Integer, default=1, index=True)
+    indoors = Column(Boolean, default=1, nullable=False)
 
     def __repr__(self):
         return self.location
