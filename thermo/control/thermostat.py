@@ -39,12 +39,12 @@ class HVAC():
         self.check_relays()
 
     def temps_to_heat(self, target, temp, verbose=False):
-        if room_temps[room] < target and not self.heat_relay_is_on():
+        if temp < target and not self.heat_relay_is_on():
             if verbose:
                 print("%s vs target %s. Turning heat on." % (temp, target))
             self.turn_heat_on()
 
-        if room_temps[room] >= target and self.heat_relay_is_on():
+        if temp >= target and self.heat_relay_is_on():
             if verbose:
                 print("%s vs target %s. Turning heat off." % (temp, target))
             self.turn_heat_off()
@@ -192,6 +192,8 @@ if __name__ == '__main__':
 
             deltas = {}
             for room, target in current_targets.iteritems():
+                if room not in room_temps:
+                    continue
                 if target is None:
                     continue
 
