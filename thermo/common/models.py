@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-from local_settings import DATABASE
+from thermo.local_settings import DATABASE
 
 
 def get_engine():
@@ -78,6 +78,7 @@ class ActionLog(Base):
     __tablename__ = 'action_log'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     action = Column(Integer, ForeignKey('action.id'), index=True)
+    value = Column(Integer, nullable=True)
     record_time = Column(DateTime, index=True)
 
 

@@ -5,7 +5,7 @@ A multi-zone thermostat built using the Raspberry Pi
 `python setup.py install`
 
 # Setup
-Create a `local_settings.py` file in `thermo/common/` and add:
+Create a `local_settings.py` file in `thermo/` and add:
 
 ```python
 from collections import namedtuple
