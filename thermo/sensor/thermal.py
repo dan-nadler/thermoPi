@@ -92,18 +92,32 @@ if __name__ == '__main__':
     user_id = args.user_id
     unit = args.unit
 
-    session = Session()
-    device_ids = {
-        s.location: s.serial_number
-        for s
-        in session.query(Sensor).filter(
-            Sensor.unit==unit,
-            Sensor.user==user_id
-        ).all()
-    }
-    session.close()
+    def check_sensors(user_id, unit):
+        session = Session()
+        device_ids = {
+            s.location: s.serial_number
+            for s
+            in session.query(Sensor).filter(
+                Sensor.unit==unit,
+                Sensor.user==user_id
+            ).all()
+        }
+        session.close()
+        return device_ids
 
+    i = 0
+    sleep = 10
+    sensor_check_interval = 60
+    cycles_per_check = sensor_check_interval/sleep
     while True:
+        if i % cycles_per_check == 0:
+            try:
+                print("Checking sensors.")
+                device_ids = check_sensors(user_id, unit)
+            except:
+                print("Check failed, retrying in %s seconds." % sleep)
+                time.sleep(sleep)
+                continue
 
         for location, device_id in device_ids.iteritems():
 
@@ -121,4 +135,5 @@ if __name__ == '__main__':
             except Exception as e:
                 print(e)
 
-        time.sleep(10)
+        i += 1
+        time.sleep(sleep)
