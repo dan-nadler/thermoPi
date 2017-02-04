@@ -181,6 +181,12 @@ class Schedule():
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--verbosity', type=int, default=0)
+    args = parser.parse_args()
+    verbosity = args.verbosity
+
     zone1 = HVAC()
     thermostat = Thermostat()
 
@@ -199,15 +205,21 @@ if __name__ == '__main__':
 
                 deltas[room] = room_temps[room] - target
 
-                print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
+                if verbosity >= 2:
+                    print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
 
             zone1_target = np.median([val for key, val in current_targets.iteritems()])
             zone1_temp = np.median([val for key, val in room_temps.iteritems()])
 
-            zone1.temps_to_heat(zone1_target, zone1_temp, verbose=True)
+            if verbosity == 1:
+                print('Target: %.2f, Measured: %.2f' % (zone1_target, zone1_temp))
+
+            zone1.temps_to_heat(zone1_target, zone1_temp, verbose=True if verbosity >= 1 else False)
 
             time.sleep(10)
 
     except KeyboardInterrupt:
         print("Turning heat off.")
-        zone1.turn_heat_off()
+        if zone1.heat_relay_is_on():
+            zone1.turn_heat_off()
+        GPIO.cleanup()
