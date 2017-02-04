@@ -1,7 +1,7 @@
-from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey
+from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from .local_settings import DATABASE
+from sqlalchemy.orm import relationship, sessionmaker
+from thermo.local_settings import DATABASE
 
 
 def get_engine():
@@ -10,6 +10,14 @@ def get_engine():
     )
     engine = create_engine(connection_string, echo=False)
     return engine
+
+
+def get_session():
+    engine = get_engine()
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    return session
+
 
 Base = declarative_base()
 
@@ -35,7 +43,8 @@ class Sensor(Base):
     temperatures = relationship('Temperature')
     serial_number = Column(String(250))
     user = Column(Integer, ForeignKey('user.id'), index=True)
-    unit = Column(Integer, default=1, index=True)
+    unit = Column(Integer, ForeignKey('unit.id'), index=True)
+    indoors = Column(Boolean, default=1, nullable=False)
 
     def __repr__(self):
         return self.location
@@ -45,6 +54,8 @@ class User(Base):
     __tablename__ = 'user'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     sensors = relationship('Sensor')
+    thermostats = relationship('Thermostat')
+    # actions = relationship('Action')
     # username = Column(String(150), unique=True, index=True) TODO Add to MySQL database
     first_name = Column(String(150))
     last_name = Column(String(150))
@@ -52,6 +63,40 @@ class User(Base):
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.first_name, self.last_name)
+
+
+class Thermostat(Base):
+    # TODO check usage of this table. Seems to be unnecessary.
+    __tablename__ = 'thermostat'
+    id = Column(Integer, autoincrement=True, primary_key=True, index=True)
+    user = Column(Integer, ForeignKey('user.id'))
+    zone = Column(Integer)
+    name = Column(String(250))
+
+
+class ActionLog(Base):
+    __tablename__ = 'action_log'
+    id = Column(Integer, autoincrement=True, primary_key=True, index=True)
+    action = Column(Integer, ForeignKey('action.id'), index=True)
+    value = Column(Integer, nullable=True)
+    record_time = Column(DateTime, index=True)
+
+
+class Action(Base):
+    __tablename__ = 'action'
+    id = Column(Integer, autoincrement=True, primary_key=True, index=True)
+    action_logs = relationship('ActionLog')
+    user = Column(Integer, ForeignKey('user.id'), index=True)
+    unit = Column(ForeignKey('unit.id'), default=1, index=True)
+    name = Column(String(250))
+
+
+class Unit(Base):
+    __tablename__ = 'unit'
+    id = Column(Integer, autoincrement=True, primary_key=True, index=True)
+    user = Column(Integer, ForeignKey('user.id'), index=True)
+    sensors = relationship('Sensor')
+    name = Column(String(250))
 
 if __name__ == '__main__':
     engine = get_engine()
