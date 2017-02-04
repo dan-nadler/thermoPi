@@ -1,10 +1,11 @@
 #!/usr/bin/python
-import RPi.GPIO as GPIO
-from thermo.common.models import *
-from thermo.common import local_settings
-from datetime import datetime, timedelta
 import time
+from datetime import datetime, timedelta
+import RPi.GPIO as GPIO
+import numpy as np
 from sqlalchemy import func
+from thermo import local_settings
+from thermo.common.models import *
 
 
 class HVAC():
@@ -20,16 +21,53 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
+            session = get_session()
+            results = session.query(Action)\
+                .filter(Action.user == local_settings.USER_NUMBER)\
+                .filter(Action.unit == local_settings.UNIT_NUMBER)\
+                .filter(Action.name == 'Heat')\
+                .all()
+            if len(results) == 1:
+                self.heat_action_id = results[0].id
+            else:
+                self.heat_action_id = None
+                raise Warning('Could not resolve action ID, logging is disabled!')
+
         else:
             raise Exception('No configuration for heating found in thermo.common.local_settings.py')
 
         self.check_relays()
 
+    def temps_to_heat(self, target, temp, verbose=False):
+        if room_temps[room] < target and not self.heat_relay_is_on():
+            if verbose:
+                print("%s vs target %s. Turning heat on." % (temp, target))
+            self.turn_heat_on()
+
+        if room_temps[room] >= target and self.heat_relay_is_on():
+            if verbose:
+                print("%s vs target %s. Turning heat off." % (temp, target))
+            self.turn_heat_off()
+
+    def log_action(self, action, value):
+        if self.heat_action_id is not None:
+            session = get_session()
+            try:
+                new_action = ActionLog(action = action, value=value, record_time=datetime.now())
+                session.add(new_action)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+            finally:
+                session.close()
+
     def turn_heat_on(self):
         GPIO.output(self.heat_pin, GPIO.HIGH)
+        self.log_action(self.heat_action_id, 1)
 
     def turn_heat_off(self):
         GPIO.output(self.heat_pin, GPIO.LOW)
+        self.log_action(self.heat_action_id, 0)
 
     def heat_relay_is_on(self):
         return GPIO.input(self.heat_pin) == 1
@@ -37,10 +75,10 @@ class HVAC():
     def check_relays(self):
         if self.heat_pin is not None:
             try:
-                self.turn_heat_on()
+                GPIO.output(self.heat_pin, GPIO.HIGH)
                 assert (self.heat_relay_is_on() == True)
 
-                self.turn_heat_off()
+                GPIO.output(self.heat_pin, GPIO.LOW)
                 assert (self.heat_relay_is_on() == False)
 
             except AssertionError:
@@ -75,10 +113,10 @@ class Thermostat():
 class Schedule():
 
     def __init__(self):
-        self.schedule = self.default()
+        self.schedule = self.default_temperatures()
 
     @staticmethod
-    def default():
+    def default_temperatures():
         session = get_session()
         results = session.query(Sensor)\
             .filter(Sensor.user == local_settings.USER_NUMBER)\
@@ -91,20 +129,35 @@ class Schedule():
             l: {
                 'Weekdays': [
                     (0, 60.),
-                    (645, 66.),
                     (715, 60.),
                     (1715, 68.),
                     (2230, 60.),
                 ],
                 'Weekends': [
-                    (0, 65.),
-                    (645, 66.),
-                    (715, 60.),
+                    (0, 60.),
+                    (800, 67.),
                     (1715, 68.),
                     (2230, 60.),
                 ]
             }
-            for l in all_locations
+            for l in all_locations if l != 'Bedroom'
+        }
+
+        sched['Bedroom'] = {
+            'Weekdays': [
+                (0, 60.),
+                (645, 66.),
+                (730, 60.),
+                (2000, 68.),
+                (2230, 60.),
+            ],
+            'Weekends': [
+                (0, 60.),
+                (800, 66.),
+                (1000, 60.),
+                (2100, 64.),
+                (2230, 60.),
+            ]
         }
         return sched
 
@@ -132,11 +185,10 @@ if __name__ == '__main__':
     thermostat = Thermostat()
 
     current_targets = Schedule().current_target_temps()
-    current_targets['Living Room (North Wall)'] = None # a test case
 
     try:
         while True:
-            room_temps = thermostat.check_recent_temperature(minutes=1, verbose=True)
+            room_temps = thermostat.check_recent_temperature(minutes=1)
 
             deltas = {}
             for room, target in current_targets.iteritems():
@@ -145,16 +197,12 @@ if __name__ == '__main__':
 
                 deltas[room] = room_temps[room] - target
 
-                print("%s, %s: %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, deltas[room]))
+                print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
 
-                # TODO write an algorithm to deterimine when to turn on/off heat
-                if room_temps[room] < target and not zone1.heat_relay_is_on():
-                    print("%s at %s. Turning heat on." % (room, deltas[room]))
-                    zone1.turn_heat_on()
+            zone1_target = np.median([val for key, val in current_targets.iteritems()])
+            zone1_temp = np.median([val for key, val in room_temps.iteritems()])
 
-                if room_temps[room] >= target and zone1.heat_relay_is_on():
-                    print("%s as %s. Turning heat off." % (room, deltas[room]))
-                    zone1.turn_heat_off()
+            zone1.temps_to_heat(zone1_target, zone1_temp, verbose=True)
 
             time.sleep(10)
 
