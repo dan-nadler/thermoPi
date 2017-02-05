@@ -9,7 +9,9 @@ from thermo.common.models import *
 
 
 class HVAC():
-    def __init__(self):
+    def __init__(self, log=True):
+        self.log = log
+
         GPIO.setmode(local_settings.GPIO_MODE)
 
         self.user = local_settings.USER_NUMBER
@@ -38,19 +40,23 @@ class HVAC():
 
         self.check_relays()
 
-    def temps_to_heat(self, target, temp, verbose=False):
-        if temp < target and not self.heat_relay_is_on():
+    def temps_to_heat(self, target, temp, verbose=False, buffer=1.):
+
+        if temp < (target-buffer) and not self.heat_relay_is_on():
             if verbose:
-                print("%s vs target %s. Turning heat on." % (temp, target))
+                print("%s vs target %s. Turning heat on." % (temp, target-buffer))
             self.turn_heat_on()
 
-        if temp >= target and self.heat_relay_is_on():
+        elif temp >= (target+buffer) and self.heat_relay_is_on():
             if verbose:
-                print("%s vs target %s. Turning heat off." % (temp, target))
+                print("%s vs target %s. Turning heat off." % (temp, target+buffer))
             self.turn_heat_off()
 
     def log_action(self, action, value):
-        if self.heat_action_id is not None:
+        if self.log == False:
+            return
+
+        elif self.heat_action_id is not None:
             session = get_session()
             try:
                 new_action = ActionLog(action = action, value=value, record_time=datetime.now())
@@ -184,10 +190,17 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--verbosity', type=int, default=0)
+    parser.add_argument('--disable-log', default=True, action='store_false')
+    parser.add_argument('--dry-run', default=False, action='store_true')
     args = parser.parse_args()
     verbosity = args.verbosity
+    log = args.disable_log
+    dry_run = args.dry_run
 
-    zone1 = HVAC()
+    zone1 = HVAC(log=log)
+    if dry_run:
+        zone1.heat_pin = 0;
+
     thermostat = Thermostat()
 
     current_targets = Schedule().current_target_temps()
@@ -214,7 +227,7 @@ if __name__ == '__main__':
             if verbosity == 1:
                 print('Target: %.2f, Measured: %.2f' % (zone1_target, zone1_temp))
 
-            zone1.temps_to_heat(zone1_target, zone1_temp, verbose=True if verbosity >= 1 else False)
+            zone1.temps_to_heat(zone1_target, zone1_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
 
             time.sleep(10)
 
