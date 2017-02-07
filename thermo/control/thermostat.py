@@ -39,7 +39,10 @@ class HVAC():
         else:
             raise Exception('No configuration for heating found in thermo.common.local_settings.py')
 
-        self.check_relays()
+        try:
+            self.heat_relay_is_on()
+        except Exception as e:
+            raise e
 
     def temps_to_heat(self, target, temp, verbose=False, buffer=1.):
 
@@ -79,14 +82,25 @@ class HVAC():
     def heat_relay_is_on(self):
         return GPIO.input(self.heat_pin) == 1
 
-    def check_relays(self):
+    def cycle_relays(self):
+
         if self.heat_pin is not None:
             try:
-                GPIO.output(self.heat_pin, GPIO.HIGH)
-                assert (self.heat_relay_is_on() == True)
+                if self.heat_relay_is_on():
 
-                GPIO.output(self.heat_pin, GPIO.LOW)
-                assert (self.heat_relay_is_on() == False)
+                    GPIO.output(self.heat_pin, GPIO.LOW)
+                    assert (self.heat_relay_is_on() == False)
+
+                    GPIO.output(self.heat_pin, GPIO.HIGH)
+                    assert (self.heat_relay_is_on() == True)
+
+                else:
+
+                    GPIO.output(self.heat_pin, GPIO.HIGH)
+                    assert (self.heat_relay_is_on() == True)
+
+                    GPIO.output(self.heat_pin, GPIO.LOW)
+                    assert (self.heat_relay_is_on() == False)
 
             except AssertionError:
                 print("Heating relay check failed, did you assign the correct GPIO heat_pin?")

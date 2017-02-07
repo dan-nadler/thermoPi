@@ -41,6 +41,10 @@ def setup(**kwargs):
     for a in available_actions:
         if a.name == 'HEAT':
             structs['HVAC'] = thermostat.HVAC(a.zone, log=kwargs.get('log', True))
+            if kwargs.get('initial', False):
+                if verbosity >= 2:
+                    print('Testing relays for HVAC.')
+                structs['HVAC'].cycle_relays()
 
     return available_actions, available_sensors, structs
 
@@ -61,8 +65,14 @@ if __name__ == '__main__':
     dry_run = args.dry_run
     sleep = args.sleep
 
-    available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
+    available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
 
+    i = 0
     while True:
+        i += 1
+        if i % (60/sleep) == 0 or sleep > 60: # update available sensors and actions every minute
+            if verbosity >= 1:
+                print('Updating available actions and sensors')
+            available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
         main(available_actions, available_sensors, structs, log=log, verbosity=verbosity)
         time.sleep(sleep)
