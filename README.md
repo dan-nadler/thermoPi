@@ -5,6 +5,7 @@ A multi-zone thermostat built using the Raspberry Pi
 `python setup.py install`
 
 # Setup
+## Local
 Create a `local_settings.py` file in `thermo/` and add:
 
 ```python
@@ -34,9 +35,15 @@ GPIO_PINS = {
 
 ```
 
+## Database
 Use `python -m thermo.common.models` to create the tables in your database.
 
-Update the `sensor` table with your sensors.
+Update the `sensor`, `unit`, `user`, `zone`, and `action` tables with your configuration.
+
+Currently, the only available action is `'HEAT'`, which controls a heating system
+(furnace, in my case) via a 2-wire thermostat line attached to a relay.
 
 # Usage
-Use `python -m thermo.sensor.thermal` to stream temperatures to the database every 10 seconds.
+Use `python -m thermo.control.main` on each raspberry pi to run thermo.
+
+This will detect the attached sensors and available actions via the database and `local_settings.py` file, and perform them in a loop.

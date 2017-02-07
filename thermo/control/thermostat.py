@@ -202,7 +202,7 @@ def main(hvac, verbosity=0):
     zone_target = np.median([val for key, val in current_targets.iteritems()])
     zone_temp = np.median([val for key, val in room_temps.iteritems()])
 
-    if verbosity == 1:
+    if verbosity >= 1:
         print('Target: %.2f, Measured: %.2f' % (zone_target, zone_temp))
 
     hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=.5)

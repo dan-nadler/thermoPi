@@ -32,7 +32,7 @@ def main(**kwargs):
         if a.name == 'HEAT':
             # Check thermostat / HVAC:
             hvac = thermostat.HVAC(a.zone, log=kwargs.get('log', True))
-            thermostat.main(hvac, verbosity=kwargs.get(verbosity, 0))
+            thermostat.main(hvac, verbosity=kwargs.get('verbosity', 0))
 
 
 if __name__ == '__main__':
