@@ -5,7 +5,24 @@ from thermo.control import thermostat
 from thermo.sensor import thermal
 import time
 
-def main(**kwargs):
+def main(available_actions, available_sensors, structs, **kwargs):
+
+
+    # Assume all sensors are thermal for now
+    # Check thermal sensors:
+    thermal.main(
+        local_settings.USER_NUMBER,
+        local_settings.UNIT_NUMBER,
+        {a.location: a.serial_number for a in available_sensors}
+    )
+
+    for a in available_actions:
+        if a.name == 'HEAT':
+            # Check thermostat / HVAC:
+            thermostat.main(structs['HVAC'], verbosity=kwargs.get('verbosity', 0))
+
+
+def setup(**kwargs):
     # Get all available actions and sensors for this unit
     session = get_session()
     unit = session.query(Unit).filter(Unit.user == local_settings.USER_NUMBER).filter(
@@ -20,19 +37,12 @@ def main(**kwargs):
     available_actions = unit.actions
     session.close()
 
-    # Assume all sensors are thermal for now
-    # Check thermal sensors:
-    thermal.main(
-        local_settings.USER_NUMBER,
-        local_settings.UNIT_NUMBER,
-        {a.location: a.serial_number for a in available_sensors}
-    )
-
+    structs = {}
     for a in available_actions:
         if a.name == 'HEAT':
-            # Check thermostat / HVAC:
-            hvac = thermostat.HVAC(a.zone, log=kwargs.get('log', True))
-            thermostat.main(hvac, verbosity=kwargs.get('verbosity', 0))
+            structs['HVAC'] = thermostat.HVAC(a.zone, log=kwargs.get('log', True))
+
+    return available_actions, available_sensors, structs
 
 
 if __name__ == '__main__':
@@ -51,6 +61,8 @@ if __name__ == '__main__':
     dry_run = args.dry_run
     sleep = args.sleep
 
+    available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
+
     while True:
-        main(log=log, verbosity=verbosity)
+        main(available_actions, available_sensors, structs, log=log, verbosity=verbosity)
         time.sleep(sleep)
