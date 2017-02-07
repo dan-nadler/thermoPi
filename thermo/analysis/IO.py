@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
+
 import matplotlib as mat
 import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
-from thermo.common.models import Temperature, get_engine
+
+from control.thermo import Temperature, get_engine
 
 
 def get_dataframe(hours=24):

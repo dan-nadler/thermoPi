@@ -1,8 +1,10 @@
 import re
 import time
 from datetime import datetime
+
 from sqlalchemy.orm import sessionmaker
-from thermo.common.models import Temperature, get_engine, Sensor, User
+
+from control.thermo import Temperature, get_engine, Sensor
 
 try:
     engine = get_engine()
