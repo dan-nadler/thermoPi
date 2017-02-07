@@ -45,6 +45,7 @@ class Sensor(Base):
     user = Column(Integer, ForeignKey('user.id'), index=True)
     unit = Column(Integer, ForeignKey('unit.id'), index=True)
     indoors = Column(Boolean, default=1, nullable=False)
+    zone = Column(Integer, ForeignKey('zone.id'), index=True)
 
     def __repr__(self):
         return self.location
@@ -54,8 +55,8 @@ class User(Base):
     __tablename__ = 'user'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     sensors = relationship('Sensor')
-    thermostats = relationship('Thermostat')
-    # actions = relationship('Action')
+    thermostat_schedule = relationship('ThermostatSchedule')
+    zones = relationship('Zone')
     # username = Column(String(150), unique=True, index=True) TODO Add to MySQL database
     first_name = Column(String(150))
     last_name = Column(String(150))
@@ -65,13 +66,27 @@ class User(Base):
         return "{0}: {1} {2}".format(self.id, self.first_name, self.last_name)
 
 
-class Thermostat(Base):
-    # TODO check usage of this table. Seems to be unnecessary.
-    __tablename__ = 'thermostat'
+class ThermostatSchedule(Base):
+    __tablename__ = 'thermostat_schedule'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     user = Column(Integer, ForeignKey('user.id'))
     zone = Column(Integer)
+    start_time = Column(DateTime)
+
+    def __repr__(self):
+        return "{0}: {1} {2}".format(self.id, self.user, self.zone)
+
+
+class Zone(Base):
+    __tablename__ = 'zone'
+    id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     name = Column(String(250))
+    user = Column(Integer, ForeignKey('user.id'))
+    sensors = relationship('Sensor')
+    actions = relationship('Action')
+
+    def __repr__(self):
+        return "{0}: {1} {2}".format(self.id, self.name, self.user)
 
 
 class ActionLog(Base):
@@ -81,14 +96,20 @@ class ActionLog(Base):
     value = Column(Integer, nullable=True)
     record_time = Column(DateTime, index=True)
 
+    def __repr__(self):
+        return "{0}: {1}".format(self.action, self.value)
+
 
 class Action(Base):
     __tablename__ = 'action'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     action_logs = relationship('ActionLog')
-    user = Column(Integer, ForeignKey('user.id'), index=True)
     unit = Column(ForeignKey('unit.id'), default=1, index=True)
     name = Column(String(250))
+    zone = Column(Integer, ForeignKey('zone.id'), index=True)
+
+    def __repr__(self):
+        return "{0}: {1} {2} {3}".format(self.id, self.name, self.unit, self.zone)
 
 
 class Unit(Base):
@@ -96,7 +117,11 @@ class Unit(Base):
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
     user = Column(Integer, ForeignKey('user.id'), index=True)
     sensors = relationship('Sensor')
+    actions = relationship('Action')
     name = Column(String(250))
+
+    def __repr__(self):
+        return "{0}: {1} {2}".format(self.id, self.user, self.name)
 
 if __name__ == '__main__':
     engine = get_engine()

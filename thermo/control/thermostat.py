@@ -9,12 +9,14 @@ from thermo.common.models import *
 
 
 class HVAC():
-    def __init__(self, log=True):
+    def __init__(self, zone, log=True):
         self.log = log
+        self.zone = zone
 
         GPIO.setmode(local_settings.GPIO_MODE)
 
         self.user = local_settings.USER_NUMBER
+        self.unit = local_settings.UNIT_NUMBER
 
         if 'HEAT' in local_settings.GPIO_PINS:
             self.heat_pin = local_settings.GPIO_PINS['HEAT']
@@ -25,9 +27,8 @@ class HVAC():
 
             session = get_session()
             results = session.query(Action)\
-                .filter(Action.user == local_settings.USER_NUMBER)\
-                .filter(Action.unit == local_settings.UNIT_NUMBER)\
-                .filter(Action.name == 'Heat')\
+                .filter(Action.unit == self.unit)\
+                .filter(Action.name == 'HEAT')\
                 .all()
             if len(results) == 1:
                 self.heat_action_id = results[0].id
@@ -90,12 +91,6 @@ class HVAC():
             except AssertionError:
                 print("Heating relay check failed, did you assign the correct GPIO heat_pin?")
 
-
-class Thermostat():
-
-    def __init__(self):
-        self.user_id = local_settings.USER_NUMBER
-
     def check_recent_temperature(self, minutes=5, verbose=False):
         session = get_session()
         indoor_temperatures = session.query(
@@ -104,8 +99,8 @@ class Thermostat():
         )\
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes))\
             .join(Sensor)\
-            .filter(Sensor.indoors == True)\
-            .filter(Sensor.user == self.user_id)\
+            .filter(Sensor.user == self.user)\
+            .filter(Sensor.zone == self.zone)\
             .group_by(Temperature.location)\
             .all()
 
@@ -186,6 +181,33 @@ class Schedule():
         return target
 
 
+def main(hvac, verbosity=0):
+
+    # Placeholder:
+    current_targets = Schedule().current_target_temps()
+
+    room_temps = hvac.check_recent_temperature(minutes=1)
+    deltas = {}
+    for room, target in current_targets.iteritems():
+        if room not in room_temps:
+            continue
+        if target is None:
+            continue
+
+        deltas[room] = room_temps[room] - target
+
+        if verbosity >= 2:
+            print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
+
+    zone_target = np.median([val for key, val in current_targets.iteritems()])
+    zone_temp = np.median([val for key, val in room_temps.iteritems()])
+
+    if verbosity == 1:
+        print('Target: %.2f, Measured: %.2f' % (zone_target, zone_temp))
+
+    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -197,42 +219,29 @@ if __name__ == '__main__':
     log = args.disable_log
     dry_run = args.dry_run
 
-    zone1 = HVAC(log=log)
+    session = get_session()
+    available_actions = session.query(User)\
+        .filter(User.id == local_settings.USER_NUMBER)\
+        .join(Action)\
+        .filter(Action.unit == local_settings.UNIT_NUMBER)
+    session.close()
+
+    action_pins = {}
+    for a in available_actions:
+
+        if a.name == 'HEAT':
+            hvac = HVAC(a.zone, log=log)
+
     if dry_run:
-        zone1.heat_pin = 0;
-
-    thermostat = Thermostat()
-
-    current_targets = Schedule().current_target_temps()
+        hvac.heat_pin = 0;
 
     try:
         while True:
-            room_temps = thermostat.check_recent_temperature(minutes=1)
-
-            deltas = {}
-            for room, target in current_targets.iteritems():
-                if room not in room_temps:
-                    continue
-                if target is None:
-                    continue
-
-                deltas[room] = room_temps[room] - target
-
-                if verbosity >= 2:
-                    print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
-
-            zone1_target = np.median([val for key, val in current_targets.iteritems()])
-            zone1_temp = np.median([val for key, val in room_temps.iteritems()])
-
-            if verbosity == 1:
-                print('Target: %.2f, Measured: %.2f' % (zone1_target, zone1_temp))
-
-            zone1.temps_to_heat(zone1_target, zone1_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
-
+            main(hvac)
             time.sleep(10)
 
     except KeyboardInterrupt:
         print("Turning heat off.")
-        if zone1.heat_relay_is_on():
-            zone1.turn_heat_off()
+        if hvac.heat_relay_is_on():
+            hvac.turn_heat_off()
         GPIO.cleanup()
