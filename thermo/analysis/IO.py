@@ -14,6 +14,7 @@ def get_dataframe(hours=24):
 
     q = session.query(Temperature).filter(Temperature.record_time >= datetime.now() - timedelta(hours=hours))
     df = pd.read_sql(q.statement, q.session.bind)
+    session.close()
 
     df = df.reset_index().pivot_table(index='record_time', columns='location', values='value')
     return df

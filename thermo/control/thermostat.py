@@ -6,6 +6,7 @@ import numpy as np
 from sqlalchemy import func
 from thermo import local_settings
 from thermo.common.models import *
+import pandas as pd
 
 
 class HVAC():
@@ -30,6 +31,7 @@ class HVAC():
                 .filter(Action.unit == self.unit)\
                 .filter(Action.name == 'HEAT')\
                 .all()
+            session.close()
             if len(results) == 1:
                 self.heat_action_id = results[0].id
             else:
@@ -44,26 +46,64 @@ class HVAC():
         except Exception as e:
             raise e
 
+        self.retrieve_lags()
+
+    def retrieve_lags(self):
+        session = get_session()
+        action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
+        self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
+        session.close()
+
+    def update_lags(self, num_recent_actions=2, overwrite=False):
+        above, below = self.check_recent_lag(num_recent_actions=num_recent_actions)
+        session = get_session()
+        action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
+        if overwrite:
+            action.expected_overshoot_above = float(above)
+            action.expected_overshoot_below = float(below)
+        else:
+            action.expected_overshoot_above += float(above)
+            action.expected_overshoot_below += float(below)
+        session.commit()
+
+        self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
+        session.close()
+
+        return self.heat_off_lag, self.heat_on_lag
+
     def temps_to_heat(self, target, temp, verbose=False, buffer=1.):
 
-        if temp < (target-buffer) and not self.heat_relay_is_on():
-            if verbose:
-                print("%s vs target %s. Turning heat on." % (temp, target-buffer))
-            self.turn_heat_on()
+        if self.heat_relay_is_on():
+            target += buffer
+            target -= self.heat_off_lag  # turn off the heat a little early (target lower) to max out at the right temp
 
-        elif temp >= (target+buffer) and self.heat_relay_is_on():
-            if verbose:
-                print("%s vs target %s. Turning heat off." % (temp, target+buffer))
-            self.turn_heat_off()
+        else:
+            target -= buffer
+            target -= self.heat_on_lag  # turn on the heat a little early (target higher, heat_on_lag is negative) to bottom out at the right temp
 
-    def log_action(self, action, value):
+        if temp < target and not self.heat_relay_is_on():
+
+            if verbose:
+                print("%s vs target %s. Turning heat on." % (temp, target))
+            self.turn_heat_on(target=target)
+
+        elif temp >= target and self.heat_relay_is_on():
+            if verbose:
+                print("%s vs target %s. Turning heat off." % (temp, target))
+            self.turn_heat_off(target=target)
+
+        else:
+            if verbose:
+                print('Target: %.2f, Measured: %.2f' % (target, temp))
+
+    def log_action(self, action, value, target=None):
         if self.log == False:
             return
 
         elif self.heat_action_id is not None:
             session = get_session()
             try:
-                new_action = ActionLog(action = action, value=value, record_time=datetime.now())
+                new_action = ActionLog(action=action, value=value, record_time=datetime.now(), target=float(target))
                 session.add(new_action)
                 session.commit()
             except Exception as e:
@@ -71,13 +111,14 @@ class HVAC():
             finally:
                 session.close()
 
-    def turn_heat_on(self):
+    def turn_heat_on(self, **kwargs):
+        # self.update_lags(2)
         GPIO.output(self.heat_pin, GPIO.HIGH)
-        self.log_action(self.heat_action_id, 1)
+        self.log_action(self.heat_action_id, 1, target=kwargs.get('target', None))
 
-    def turn_heat_off(self):
+    def turn_heat_off(self, **kwargs):
         GPIO.output(self.heat_pin, GPIO.LOW)
-        self.log_action(self.heat_action_id, 0)
+        self.log_action(self.heat_action_id, 0, target=kwargs.get('target', None))
 
     def heat_relay_is_on(self):
         return GPIO.input(self.heat_pin) == 1
@@ -108,21 +149,93 @@ class HVAC():
     def check_recent_temperature(self, minutes=5, verbose=False):
         session = get_session()
         indoor_temperatures = session.query(
-            Temperature.location,
-            func.sum(Temperature.value) / func.count(Temperature.value)
-        )\
+                Temperature.location,
+                func.sum(Temperature.value) / func.count(Temperature.value)
+            )\
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes))\
             .join(Sensor)\
             .filter(Sensor.user == self.user)\
             .filter(Sensor.zone == self.zone)\
             .group_by(Temperature.location)\
             .all()
-
+        session.close()
         if verbose:
             for i in indoor_temperatures:
                 print "%s, %.1f" % (i[0], i[1])
 
         return {i[0]: i[1] for i in indoor_temperatures}
+
+    def check_recent_lag(self, minutes=3, num_recent_actions=10, verbose=False):
+        """
+        Check the <num_recent_actions> most recent actions, and calculate the drift in temperature
+        from the action to the local min/max temperature
+        :param minutes:
+        :param num_recent_actions:
+        :param verbose:
+        :return: temp lag off, temp lag on
+        """
+
+        session = get_session()
+        a = session.query(ActionLog) \
+            .filter(ActionLog.action == 1) \
+            .order_by(ActionLog.record_time.desc()) \
+            .limit(num_recent_actions) \
+            .all()
+        session.close()
+
+        actions = [(i.value, i.record_time, i.target) for i in a]
+
+        session = get_session()
+        t = session.query(Temperature) \
+            .filter(Temperature.record_time >= actions[-1][1]) \
+            .filter(Temperature.record_time <= actions[0][1] + timedelta(minutes=minutes)) \
+            .join(Sensor) \
+            .filter(Sensor.zone == self.zone).all()
+        session.close()
+
+        df = pd.DataFrame([(T.record_time, T.location, T.value) for T in t])
+        df.columns = ['record_time', 'location', 'value']
+
+        df = df.pivot_table(index='record_time', columns='location', values='value')
+
+        df = df.resample('10S', how='mean')
+        df[np.abs(df.ffill() - pd.rolling_median(df.ffill(), 5)) > 5] = np.nan
+        df = df.interpolate('linear')
+
+        df2 = pd.DataFrame(
+            {
+                'heat': {b: a for a, b, c in actions},
+                'target': {b: c for a, b, c in actions},
+                'temp': df.median(axis=1).resample('S').interpolate('linear')
+            }
+        )
+
+        lag_on = []
+        lag_off = []
+
+        temp_lag_on = []
+        temp_lag_off = []
+
+        for row in df2.dropna(subset=['heat','target']).T.iteritems():
+            if row[1]['heat'] == 1:
+                heat_cusp = df2.ix[row[0]:row[0] + timedelta(minutes=minutes)].idxmin()['temp']
+                if not pd.isnull(heat_cusp):
+                    lag_on.append(heat_cusp - row[0])
+
+                temp_cusp = df2.ix[row[0]:row[0] + timedelta(minutes=minutes)].min()['temp']
+                if not pd.isnull(heat_cusp) and not pd.isnull(temp_cusp) and not pd.isnull(row[1]['target']):
+                    temp_lag_on.append(temp_cusp - row[1]['target'])
+
+            else:
+                heat_cusp = df2.ix[row[0]:row[0] + timedelta(minutes=minutes)].idxmax()['temp']
+                if not pd.isnull(heat_cusp):
+                    lag_off.append(heat_cusp - row[0])
+
+                temp_cusp = df2.ix[row[0]:row[0] + timedelta(minutes=minutes)].max()['temp']
+                if not pd.isnull(heat_cusp) and not pd.isnull(temp_cusp) and not pd.isnull(row[1]['target']):
+                    temp_lag_off.append(temp_cusp - row[1]['target'])
+
+        return np.mean(temp_lag_off), np.mean(temp_lag_on)
 
 
 class Schedule():
@@ -208,18 +321,16 @@ def main(hvac, verbosity=0):
         if target is None:
             continue
 
+
         deltas[room] = room_temps[room] - target
 
         if verbosity >= 2:
             print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
 
-    zone_target = np.median([val for key, val in current_targets.iteritems()])
-    zone_temp = np.median([val for key, val in room_temps.iteritems()])
+    zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
+    zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
 
-    if verbosity >= 1:
-        print('Target: %.2f, Measured: %.2f' % (zone_target, zone_temp))
-
-    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
+    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=1)
 
 
 if __name__ == '__main__':

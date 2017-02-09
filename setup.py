@@ -8,5 +8,5 @@ setup(
         'pandas'
     ],
     version='0.1.5',
-    packages=find_packages()
+    packages=['thermo']
 )
