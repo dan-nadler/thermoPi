@@ -95,6 +95,7 @@ class ActionLog(Base):
     action = Column(Integer, ForeignKey('action.id'), index=True)
     value = Column(Integer, nullable=True)
     record_time = Column(DateTime, index=True)
+    target = Column(Float, nullable=True)
 
     def __repr__(self):
         return "{0}: {1}".format(self.action, self.value)
