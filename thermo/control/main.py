@@ -65,14 +65,28 @@ if __name__ == '__main__':
     dry_run = args.dry_run
     sleep = args.sleep
 
+    if verbosity >= 1:
+        print('Updating available actions and sensors.')
     available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
+
+    if 'HVAC' in structs:
+        if verbosity >= 1:
+            print('Updating HVAC lags.')
+        structs['HVAC'].update_lags(10, overwrite=True)
 
     i = 0
     while True:
         i += 1
+
         if i % (60/sleep) == 0 or sleep > 60: # update available sensors and actions every minute
             if verbosity >= 1:
-                print('Updating available actions and sensors')
+                print('Updating available actions and sensors.')
             available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
+
+            if 'HVAC' in structs:
+                if verbosity >= 1:
+                    print('Updating HVAC lags.')
+                structs['HVAC'].update_lags(10, overwrite=True)
+
         main(available_actions, available_sensors, structs, log=log, verbosity=verbosity)
         time.sleep(sleep)

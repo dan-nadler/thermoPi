@@ -6,6 +6,7 @@ import numpy as np
 from sqlalchemy import func
 from thermo import local_settings
 from thermo.common.models import *
+from thermo.sensor.thermal import read_temp_sensor
 import pandas as pd
 
 
@@ -18,6 +19,14 @@ class HVAC():
 
         self.user = local_settings.USER_NUMBER
         self.unit = local_settings.UNIT_NUMBER
+
+        session = get_session()
+        local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(Sensor.user == self.user).all()
+        session.close()
+
+        self.fallback_sensors = [ (s.location, s.serial_number) for s in local_sensors if s.indoors == True ]
+        if len(self.fallback_sensors) == 0:
+            print('Warning: No local backup sensors available.')
 
         if 'HEAT' in local_settings.GPIO_PINS:
             self.heat_pin = local_settings.GPIO_PINS['HEAT']
@@ -36,7 +45,7 @@ class HVAC():
                 self.heat_action_id = results[0].id
             else:
                 self.heat_action_id = None
-                raise Warning('Could not resolve action ID, logging is disabled!')
+                print('Warning: Could not resolve action ID, logging is disabled!')
 
         else:
             raise Exception('No configuration for heating found in thermo.common.local_settings.py')
@@ -112,7 +121,6 @@ class HVAC():
                 session.close()
 
     def turn_heat_on(self, **kwargs):
-        # self.update_lags(2)
         GPIO.output(self.heat_pin, GPIO.HIGH)
         self.log_action(self.heat_action_id, 1, target=kwargs.get('target', None))
 
@@ -257,9 +265,10 @@ class Schedule():
             l: {
                 'Weekdays': [
                     (0, 60.),
-                    (715, 60.),
+                    (630, 66.),
+                    (715, 64.),
                     (1715, 68.),
-                    (2230, 60.),
+                    (2230, 62.),
                 ],
                 'Weekends': [
                     (0, 60.),
@@ -313,7 +322,17 @@ def main(hvac, verbosity=0):
     # Placeholder:
     current_targets = Schedule().current_target_temps()
 
-    room_temps = hvac.check_recent_temperature(minutes=1)
+    try:
+        room_temps = hvac.check_recent_temperature(minutes=1)
+    except Exception as e:
+        print('Exception, falling back to local sensor.')
+        for location, serial_number in hvac.fallback_sensors:
+            is_on, room_temps[location] = read_temp_sensor(serial_number)
+            if not is_on:
+                print('EMERGENCY: Fallback sensor unavailable!')
+                # TODO fallback to predictive model
+                return
+
     deltas = {}
     for room, target in current_targets.iteritems():
         if room not in room_temps:
@@ -330,7 +349,7 @@ def main(hvac, verbosity=0):
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
 
-    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=1)
+    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
 
 
 if __name__ == '__main__':

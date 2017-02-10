@@ -94,6 +94,8 @@ def main(user_id, unit, devices):
 
             except Exception as e:
                 print('Error during database insert: ', e)
+                print('Writing to CSV.')
+                record_to_csv(datetime.now(), temperature, location, '/home/pi/thermo_logs/temperature.csv')
 
             print(location, temperature)
 
