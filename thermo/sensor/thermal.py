@@ -68,6 +68,7 @@ def record_to_database(record_time, temp, location):
     except:
         print('Error inserting records')
         session.rollback()
+        raise Exception('Error inserting records')
     finally:
         session.close()
 
@@ -88,19 +89,17 @@ def main(user_id, unit, devices):
 
         try:
             _, temperature = read_temp_sensor(device_id)
-
-            try:
-                record_to_database(datetime.now(), temperature, location)
-
-            except Exception as e:
-                print('Error during database insert: ', e)
-                print('Writing to CSV.')
-                record_to_csv(datetime.now(), temperature, location, '/home/pi/thermo_logs/temperature.csv')
-
             print(location, temperature)
+        except Exception as e:
+            print('Sensor read failed for {0}: {1}'.format(location, device_id))
+
+        try:
+            record_to_database(datetime.now(), temperature, location)
 
         except Exception as e:
-            print(e)
+            print('Error during database insert: ', e)
+            print('Writing to CSV.')
+            record_to_csv(datetime.now(), temperature, location, '/home/pi/thermo_logs/temperature.csv')
 
 
 if __name__ == '__main__':

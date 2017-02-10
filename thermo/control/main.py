@@ -81,7 +81,10 @@ if __name__ == '__main__':
         if i % (60/sleep) == 0 or sleep > 60: # update available sensors and actions every minute
             if verbosity >= 1:
                 print('Updating available actions and sensors.')
-            available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
+            try:
+                available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
+            except:
+                pass
 
             if 'HVAC' in structs:
                 if verbosity >= 1:
