@@ -69,9 +69,12 @@ class User(Base):
 class ThermostatSchedule(Base):
     __tablename__ = 'thermostat_schedule'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
-    user = Column(Integer, ForeignKey('user.id'))
-    zone = Column(Integer)
-    start_time = Column(DateTime)
+    day = Column(Integer, index=True, nullable=False)
+    hour = Column(Integer, index=True, nullable=False)
+    minute = Column(Integer, index=True, nullable=False)
+    target = Column(Float, nullable=False)
+    user = Column(Integer, ForeignKey('user.id'), nullable=False)
+    zone = Column(Integer, ForeignKey('zone.id'), nullable=False)
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.user, self.zone)
@@ -84,6 +87,7 @@ class Zone(Base):
     user = Column(Integer, ForeignKey('user.id'))
     sensors = relationship('Sensor')
     actions = relationship('Action')
+    thermostat_schedule = relationship('ThermostatSchedule')
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.name, self.user)

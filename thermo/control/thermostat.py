@@ -8,6 +8,7 @@ from thermo import local_settings
 from thermo.common.models import *
 from thermo.sensor.thermal import read_temp_sensor
 import pandas as pd
+from collections import namedtuple
 
 
 class HVAC():
@@ -20,9 +21,18 @@ class HVAC():
         self.user = local_settings.USER_NUMBER
         self.unit = local_settings.UNIT_NUMBER
 
-        session = get_session()
-        local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(Sensor.user == self.user).all()
-        session.close()
+        try:
+            session = get_session()
+            local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(Sensor.user == self.user).all()
+            session.close()
+        except:
+            local_sensors = [Sensor(
+                unit=local_settings.UNIT_NUMBER,
+                user=local_settings.USER_NUMBER,
+                serial_number=local_settings.FALLBACK['SERIAL NUMBER'],
+                location=local_settings.FALLBACK['LOCATION'],
+                indoors=True
+            )]
 
         self.fallback_sensors = [ (s.location, s.serial_number) for s in local_sensors if s.indoors == True ]
         if len(self.fallback_sensors) == 0:
@@ -35,15 +45,19 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
-            session = get_session()
-            results = session.query(Action)\
-                .filter(Action.unit == self.unit)\
-                .filter(Action.name == 'HEAT')\
-                .all()
-            session.close()
-            if len(results) == 1:
-                self.heat_action_id = results[0].id
-            else:
+            try:
+                session = get_session()
+                results = session.query(Action)\
+                    .filter(Action.unit == self.unit)\
+                    .filter(Action.name == 'HEAT')\
+                    .all()
+                session.close()
+                if len(results) == 1:
+                    self.heat_action_id = results[0].id
+                else:
+                    self.heat_action_id = None
+                    print('Warning: Could not resolve action ID, logging is disabled!')
+            except:
                 self.heat_action_id = None
                 print('Warning: Could not resolve action ID, logging is disabled!')
 
@@ -58,10 +72,13 @@ class HVAC():
         self.retrieve_lags()
 
     def retrieve_lags(self):
-        session = get_session()
-        action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
-        self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
-        session.close()
+        try:
+            session = get_session()
+            action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
+            self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
+            session.close()
+        except:
+            self.heat_off_lag, self.heat_on_lag = 0., 0.
 
     def update_lags(self, num_recent_actions=2, overwrite=False):
         above, below = self.check_recent_lag(num_recent_actions=num_recent_actions)
@@ -253,21 +270,24 @@ class Schedule():
 
     @staticmethod
     def default_temperatures():
-        session = get_session()
-        results = session.query(Sensor)\
-            .filter(Sensor.user == local_settings.USER_NUMBER)\
-            .filter(Sensor.indoors == True)\
-            .all()
+        try:
+            session = get_session()
+            results = session.query(Sensor)\
+                .filter(Sensor.user == local_settings.USER_NUMBER)\
+                .filter(Sensor.indoors == True)\
+                .all()
+            session.close()
+            all_locations = [r.location for r in results]
+        except:
+            all_locations = [local_settings.FALLBACK['LOCATION']]
 
-        session.close()
-        all_locations = [r.location for r in results]
         sched = {
             l: {
                 'Weekdays': [
                     (0, 60.),
                     (630, 66.),
                     (715, 64.),
-                    (1715, 66.),
+                    (1715, 68.),
                     (2230, 62.),
                 ],
                 'Weekends': [
@@ -326,6 +346,7 @@ def main(hvac, verbosity=0):
         room_temps = hvac.check_recent_temperature(minutes=1)
     except Exception as e:
         print('Exception, falling back to local sensor.')
+        room_temps = {}
         for location, serial_number in hvac.fallback_sensors:
             is_on, room_temps[location] = read_temp_sensor(serial_number)
             if not is_on:
