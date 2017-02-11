@@ -1,4 +1,3 @@
-#!/usr/bin/python
 import time
 from datetime import datetime, timedelta
 import RPi.GPIO as GPIO

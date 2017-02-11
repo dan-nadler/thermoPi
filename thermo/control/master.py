@@ -1,4 +1,3 @@
-#!/usr/bin/python
 from thermo import local_settings
 from thermo.common.models import *
 from thermo.control import thermostat
