@@ -69,11 +69,6 @@ if __name__ == '__main__':
         print('Updating available actions and sensors.')
     available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
 
-    if 'HVAC' in structs:
-        if verbosity >= 1:
-            print('Updating HVAC lags.')
-        structs['HVAC'].update_lags(10, overwrite=True)
-
     i = 0
     while True:
         i += 1
@@ -85,11 +80,6 @@ if __name__ == '__main__':
                 available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
             except:
                 pass
-
-            if 'HVAC' in structs:
-                if verbosity >= 1:
-                    print('Updating HVAC lags.')
-                structs['HVAC'].update_lags(10, overwrite=True)
 
         main(available_actions, available_sensors, structs, log=log, verbosity=verbosity)
         time.sleep(sleep)

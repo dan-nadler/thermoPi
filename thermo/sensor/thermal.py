@@ -92,6 +92,7 @@ def main(user_id, unit, devices):
             print(location, temperature)
         except Exception as e:
             print('Sensor read failed for {0}: {1}'.format(location, device_id))
+            return # there is no data to record.
 
         try:
             record_to_database(datetime.now(), temperature, location)
