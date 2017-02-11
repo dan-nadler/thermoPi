@@ -2,7 +2,7 @@ import re
 import time
 from datetime import datetime
 from sqlalchemy.orm import sessionmaker
-from thermo.common.models import Temperature, get_engine, Sensor, User
+from thermo.common.models import Temperature, get_engine, Sensor
 
 try:
     engine = get_engine()
@@ -68,6 +68,7 @@ def record_to_database(record_time, temp, location):
     except:
         print('Error inserting records')
         session.rollback()
+        raise Exception('Error inserting records')
     finally:
         session.close()
 
@@ -80,6 +81,26 @@ def record_to_csv(record_time, temp, location, file):
             location
         )
         f.write(line)
+
+
+def main(user_id, unit, devices):
+
+    for location, device_id in devices.iteritems():
+
+        try:
+            _, temperature = read_temp_sensor(device_id)
+            print(location, temperature)
+        except Exception as e:
+            print('Sensor read failed for {0}: {1}'.format(location, device_id))
+            return # there is no data to record.
+
+        try:
+            record_to_database(datetime.now(), temperature, location)
+
+        except Exception as e:
+            print('Error during database insert: ', e)
+            print('Writing to CSV.')
+            record_to_csv(datetime.now(), temperature, location, '/home/pi/temperature_log.csv')
 
 
 if __name__ == '__main__':
@@ -98,42 +119,23 @@ if __name__ == '__main__':
             s.location: s.serial_number
             for s
             in session.query(Sensor).filter(
-                Sensor.unit==unit,
-                Sensor.user==user_id
-            ).all()
-        }
+            Sensor.unit == unit,
+            Sensor.user == user_id
+        ).all()
+            }
         session.close()
         return device_ids
 
     i = 0
     sleep = 10
     sensor_check_interval = 60
-    cycles_per_check = sensor_check_interval/sleep
+    cycles_per_check = sensor_check_interval / sleep
+
     while True:
         if i % cycles_per_check == 0:
-            try:
-                print("Checking sensors.")
-                device_ids = check_sensors(user_id, unit)
-            except:
-                print("Check failed, retrying in %s seconds." % sleep)
-                time.sleep(sleep)
-                continue
+            devices = check_sensors(user_id, unit)
 
-        for location, device_id in device_ids.iteritems():
-
-            try:
-                _, temperature = read_temp_sensor(device_id)
-
-                try:
-                    record_to_database(datetime.now(), temperature, location)
-
-                except Exception as e:
-                    print('Error during database insert: ', e)
-
-                print(location, temperature)
-
-            except Exception as e:
-                print(e)
+        main(user_id, unit, devices)
 
         i += 1
         time.sleep(sleep)
