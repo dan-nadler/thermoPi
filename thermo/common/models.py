@@ -61,6 +61,7 @@ class User(Base):
     first_name = Column(String(150))
     last_name = Column(String(150))
     address = Column(String(250))
+    api_key = Column(String(250))
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.first_name, self.last_name)
