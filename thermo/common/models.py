@@ -78,7 +78,7 @@ class ThermostatSchedule(Base):
     zone = Column(Integer, ForeignKey('zone.id'), nullable=False)
 
     def __repr__(self):
-        return "{0}: {1} {2}".format(self.id, self.user, self.zone)
+        return "Zone {0}: {1} @ {2}:{3}".format(self.zone, self.target, self.hour, self.minute)
 
 
 class Zone(Base):

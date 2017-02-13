@@ -11,6 +11,7 @@ from collections import namedtuple
 
 
 class HVAC():
+
     def __init__(self, zone, log=True):
         self.log = log
         self.zone = zone
@@ -22,7 +23,8 @@ class HVAC():
 
         try:
             session = get_session()
-            local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(Sensor.user == self.user).all()
+            local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(
+                Sensor.user == self.user).all()
             session.close()
         except:
             local_sensors = [Sensor(
@@ -33,7 +35,7 @@ class HVAC():
                 indoors=True
             )]
 
-        self.fallback_sensors = [ (s.location, s.serial_number) for s in local_sensors if s.indoors == True ]
+        self.fallback_sensors = [(s.location, s.serial_number) for s in local_sensors if s.indoors == True]
         if len(self.fallback_sensors) == 0:
             print('Warning: No local backup sensors available.')
 
@@ -46,9 +48,9 @@ class HVAC():
 
             try:
                 session = get_session()
-                results = session.query(Action)\
-                    .filter(Action.unit == self.unit)\
-                    .filter(Action.name == 'HEAT')\
+                results = session.query(Action) \
+                    .filter(Action.unit == self.unit) \
+                    .filter(Action.name == 'HEAT') \
                     .all()
                 session.close()
                 if len(results) == 1:
@@ -173,14 +175,14 @@ class HVAC():
     def check_recent_temperature(self, minutes=5, verbose=False):
         session = get_session()
         indoor_temperatures = session.query(
-                Temperature.location,
-                func.sum(Temperature.value) / func.count(Temperature.value)
-            )\
-            .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes))\
-            .join(Sensor)\
-            .filter(Sensor.user == self.user)\
-            .filter(Sensor.zone == self.zone)\
-            .group_by(Temperature.location)\
+            Temperature.location,
+            func.sum(Temperature.value) / func.count(Temperature.value)
+        ) \
+            .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
+            .join(Sensor) \
+            .filter(Sensor.user == self.user) \
+            .filter(Sensor.zone == self.zone) \
+            .group_by(Temperature.location) \
             .all()
         session.close()
         if verbose:
@@ -240,7 +242,7 @@ class HVAC():
         temp_lag_on = []
         temp_lag_off = []
 
-        for row in df2.dropna(subset=['heat','target']).T.iteritems():
+        for row in df2.dropna(subset=['heat', 'target']).T.iteritems():
             if row[1]['heat'] == 1:
                 heat_cusp = df2.ix[row[0]:row[0] + timedelta(minutes=minutes)].idxmin()['temp']
                 if not pd.isnull(heat_cusp):
@@ -263,69 +265,44 @@ class HVAC():
 
 
 class Schedule():
+    def __init__(self, zone):
+        self.zone = zone
+        self.schedule = self.update_local_schedule()
 
-    def __init__(self):
-        self.schedule = self.default_temperatures()
+    def update_local_schedule(self):
+        session = get_session()
+        results = session.query(ThermostatSchedule, Sensor)\
+            .filter(ThermostatSchedule.zone == self.zone) \
+            .filter(ThermostatSchedule.zone == Sensor.zone) \
+            .filter(ThermostatSchedule.user == local_settings.USER_NUMBER) \
+            .filter(ThermostatSchedule.user == Sensor.user) \
+            .all()
+        session.close()
 
-    @staticmethod
-    def default_temperatures():
-        try:
-            session = get_session()
-            results = session.query(Sensor)\
-                .filter(Sensor.user == local_settings.USER_NUMBER)\
-                .filter(Sensor.indoors == True)\
-                .all()
-            session.close()
-            all_locations = [r.location for r in results]
-        except:
-            all_locations = [local_settings.FALLBACK['LOCATION']]
+        schedule = {}
+        for r in results:
+            schedule[r[1].location] = {}
 
-        sched = {
-            l: {
-                'Weekdays': [
-                    (0, 60.),
-                    (630, 66.),
-                    (715, 64.),
-                    (1715, 68.),
-                    (2230, 62.),
-                ],
-                'Weekends': [
-                    (0, 60.),
-                    (800, 67.),
-                    (1715, 63.),
-                    (2230, 60.),
-                ]
-            }
-            for l in all_locations if l != 'Bedroom'
-        }
+        for r in results:
+            schedule[r[1].location][r[0].day] = []
 
-        sched['Bedroom'] = {
-            'Weekdays': [
-                (0, 60.),
-                (645, 66.),
-                (730, 60.),
-                (2000, 68.),
-                (2230, 60.),
-            ],
-            'Weekends': [
-                (0, 60.),
-                (800, 66.),
-                (1000, 60.),
-                (2100, 64.),
-                (2230, 60.),
-            ]
-        }
-        return sched
+        for r in results:
+            if r[0].minute == 0:
+                minute = '00'
+            else:
+                minute = str(r[0].minute)
+
+            time = int(str(r[0].hour) + minute)
+            schedule[r[1].location][r[0].day].append((time, float(r[0].target)))
+
+        return schedule
 
     def current_target_temps(self):
-        is_weekend = datetime.now().strftime('%a') in ['Sat', 'Sun']
+        weekday = datetime.now().weekday()
         current_time = int(datetime.now().strftime('%H%M'))
         target = {}
         for room, day in self.schedule.iteritems():
-            if is_weekend:
-                temp = day['Weekends']
-            else:
-                temp = day['Weekdays']
+            temp = day[weekday]
 
             if current_time < temp[0][0]:
                 target[room] = temp[0][1]
@@ -337,9 +314,7 @@ class Schedule():
 
 
 def main(hvac, verbosity=0):
-
-    # Placeholder:
-    current_targets = Schedule().current_target_temps()
+    current_targets = Schedule(1).current_target_temps()
 
     try:
         room_temps = hvac.check_recent_temperature(minutes=1)
@@ -360,11 +335,11 @@ def main(hvac, verbosity=0):
         if target is None:
             continue
 
-
         deltas[room] = room_temps[room] - target
 
         if verbosity >= 2:
-            print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
+            print("%s, %s: %.2f, %.2f, %.2f" % (
+            datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
 
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
@@ -374,6 +349,7 @@ def main(hvac, verbosity=0):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--verbosity', type=int, default=0)
     parser.add_argument('--disable-log', default=True, action='store_false')
@@ -384,9 +360,9 @@ if __name__ == '__main__':
     dry_run = args.dry_run
 
     session = get_session()
-    available_actions = session.query(User)\
-        .filter(User.id == local_settings.USER_NUMBER)\
-        .join(Action)\
+    available_actions = session.query(User) \
+        .filter(User.id == local_settings.USER_NUMBER) \
+        .join(Action) \
         .filter(Action.unit == local_settings.UNIT_NUMBER)
     session.close()
 
