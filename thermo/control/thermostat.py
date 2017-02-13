@@ -7,12 +7,12 @@ from thermo import local_settings
 from thermo.common.models import *
 from thermo.sensor.thermal import read_temp_sensor
 import pandas as pd
-from collections import namedtuple
+import json
 
 
 class HVAC():
-
     def __init__(self, zone, log=True):
+
         self.log = log
         self.zone = zone
 
@@ -71,6 +71,8 @@ class HVAC():
             raise e
 
         self.retrieve_lags()
+
+        self.schedule = Schedule(self.zone)
 
     def retrieve_lags(self):
         try:
@@ -268,10 +270,50 @@ class Schedule():
     def __init__(self, zone):
         self.zone = zone
         self.schedule = self.update_local_schedule()
+        self.override = None
+        self.override_expiration = None
+
+    def get_override_messages(self):
+        """
+        Read the messages table for any override messages
+        :return:
+        """
+        try:
+            session = get_session()
+            results = session.query(Message)\
+                .filter(Message.user == local_settings.USER_NUMBER)\
+                .filter(Message.received == False)\
+                .filter(Message.type == 'temperature override')\
+                .order_by(Message.record_time.desc())\
+                .all()
+
+            msg = results[0]
+            msg_dict = json.loads(msg.json)
+            target = msg_dict['target']
+            expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+            zone = msg_dict['zone']
+
+            for m in results:
+                m.received = True
+
+            session.commit()
+
+            if zone == self.zone:
+                self.override = target
+                self.override_expiration = expiration
+
+        except IndexError:
+            # This error will occur if there are no unread messages
+            pass
+
+        finally:
+            session.close()
+
+        return
 
     def update_local_schedule(self):
         session = get_session()
-        results = session.query(ThermostatSchedule, Sensor)\
+        results = session.query(ThermostatSchedule, Sensor) \
             .filter(ThermostatSchedule.zone == self.zone) \
             .filter(ThermostatSchedule.zone == Sensor.zone) \
             .filter(ThermostatSchedule.user == local_settings.USER_NUMBER) \
@@ -298,6 +340,13 @@ class Schedule():
         return schedule
 
     def current_target_temps(self):
+        if self.override is not None:
+            if datetime.now() >= self.override_expiration:
+                self.override = None
+                self.override_expiration = None
+            else:
+                return self.override
+
         weekday = datetime.now().weekday()
         current_time = int(datetime.now().strftime('%H%M'))
         target = {}
@@ -314,7 +363,8 @@ class Schedule():
 
 
 def main(hvac, verbosity=0):
-    current_targets = Schedule(1).current_target_temps()
+    hvac.schedule.get_override_messages()
+    current_targets = hvac.schedule.current_target_temps()
 
     try:
         room_temps = hvac.check_recent_temperature(minutes=1)
