@@ -10,6 +10,7 @@ Create a `local_settings.py` file in `thermo/` and add:
 
 ```python
 from collections import namedtuple
+from RPi.GPIO import BCM
 
 def convert(dictionary):
     return namedtuple('GenericDict', dictionary.keys())(**dictionary)
