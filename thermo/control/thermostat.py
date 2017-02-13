@@ -284,23 +284,25 @@ class Schedule():
                 .filter(Message.user == local_settings.USER_NUMBER)\
                 .filter(Message.received == False)\
                 .filter(Message.type == 'temperature override')\
-                .order_by(Message.record_time.desc())\
+                .order_by(Message.record_time.asc())\
                 .all()
 
-            msg = results[0]
-            msg_dict = json.loads(msg.json)
-            target = msg_dict['target']
-            expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
-            zone = msg_dict['zone']
+            for msg in results:
+                msg_dict = json.loads(msg.json)
+                target = msg_dict['target']
+                expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                zone = int(msg_dict['zone'])
 
-            for m in results:
-                m.received = True
+                for location, tgt in target.iteritems():
+                    target[str(location)] = float(tgt)
+
+                if zone == self.zone:
+                    self.override = target
+                    self.override_expiration = expiration
+
+                    msg.received = True
 
             session.commit()
-
-            if zone == self.zone:
-                self.override = target
-                self.override_expiration = expiration
 
         except IndexError:
             # This error will occur if there are no unread messages
