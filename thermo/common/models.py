@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean
+from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean, BLOB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from thermo.local_settings import DATABASE
@@ -57,10 +57,12 @@ class User(Base):
     sensors = relationship('Sensor')
     thermostat_schedule = relationship('ThermostatSchedule')
     zones = relationship('Zone')
+    messages = relationship('Message')
     # username = Column(String(150), unique=True, index=True) TODO Add to MySQL database
     first_name = Column(String(150))
     last_name = Column(String(150))
     address = Column(String(250))
+    api_key = Column(String(250))
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.first_name, self.last_name)
@@ -69,12 +71,15 @@ class User(Base):
 class ThermostatSchedule(Base):
     __tablename__ = 'thermostat_schedule'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
-    user = Column(Integer, ForeignKey('user.id'))
-    zone = Column(Integer)
-    start_time = Column(DateTime)
+    day = Column(Integer, index=True, nullable=False)
+    hour = Column(Integer, index=True, nullable=False)
+    minute = Column(Integer, index=True, nullable=False)
+    target = Column(Float, nullable=False)
+    user = Column(Integer, ForeignKey('user.id'), nullable=False)
+    zone = Column(Integer, ForeignKey('zone.id'), nullable=False)
 
     def __repr__(self):
-        return "{0}: {1} {2}".format(self.id, self.user, self.zone)
+        return "Zone {0}: {1} @ {2}:{3}".format(self.zone, self.target, self.hour, self.minute)
 
 
 class Zone(Base):
@@ -84,6 +89,7 @@ class Zone(Base):
     user = Column(Integer, ForeignKey('user.id'))
     sensors = relationship('Sensor')
     actions = relationship('Action')
+    thermostat_schedule = relationship('ThermostatSchedule')
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.name, self.user)
@@ -122,10 +128,23 @@ class Unit(Base):
     user = Column(Integer, ForeignKey('user.id'), index=True)
     sensors = relationship('Sensor')
     actions = relationship('Action')
+    messages = relationship('Message')
     name = Column(String(250))
 
     def __repr__(self):
         return "{0}: {1} {2}".format(self.id, self.user, self.name)
+
+
+class Message(Base):
+    __tablename__ = 'message'
+    id = Column(Integer, autoincrement=True, primary_key=True, index=True)
+    record_time = Column(DateTime, primary_key=True)
+    user = Column(Integer, ForeignKey('user.id'), index=True)
+    json = Column(BLOB, nullable=False)
+    received = Column(Boolean, nullable=False, default=False)
+    type = Column(String(250), nullable=False)
+    unit = Column(Integer, ForeignKey('unit.id'), index=True, nullable=True)
+
 
 if __name__ == '__main__':
     engine = get_engine()

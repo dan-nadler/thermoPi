@@ -1,4 +1,3 @@
-#!/usr/bin/python
 import time
 from datetime import datetime, timedelta
 import RPi.GPIO as GPIO
@@ -8,10 +7,12 @@ from thermo import local_settings
 from thermo.common.models import *
 from thermo.sensor.thermal import read_temp_sensor
 import pandas as pd
+import json
 
 
 class HVAC():
     def __init__(self, zone, log=True):
+
         self.log = log
         self.zone = zone
 
@@ -20,11 +21,21 @@ class HVAC():
         self.user = local_settings.USER_NUMBER
         self.unit = local_settings.UNIT_NUMBER
 
-        session = get_session()
-        local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(Sensor.user == self.user).all()
-        session.close()
+        try:
+            session = get_session()
+            local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(
+                Sensor.user == self.user).all()
+            session.close()
+        except:
+            local_sensors = [Sensor(
+                unit=local_settings.UNIT_NUMBER,
+                user=local_settings.USER_NUMBER,
+                serial_number=local_settings.FALLBACK['SERIAL NUMBER'],
+                location=local_settings.FALLBACK['LOCATION'],
+                indoors=True
+            )]
 
-        self.fallback_sensors = [ (s.location, s.serial_number) for s in local_sensors if s.indoors == True ]
+        self.fallback_sensors = [(s.location, s.serial_number) for s in local_sensors if s.indoors == True]
         if len(self.fallback_sensors) == 0:
             print('Warning: No local backup sensors available.')
 
@@ -35,15 +46,19 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
-            session = get_session()
-            results = session.query(Action)\
-                .filter(Action.unit == self.unit)\
-                .filter(Action.name == 'HEAT')\
-                .all()
-            session.close()
-            if len(results) == 1:
-                self.heat_action_id = results[0].id
-            else:
+            try:
+                session = get_session()
+                results = session.query(Action) \
+                    .filter(Action.unit == self.unit) \
+                    .filter(Action.name == 'HEAT') \
+                    .all()
+                session.close()
+                if len(results) == 1:
+                    self.heat_action_id = results[0].id
+                else:
+                    self.heat_action_id = None
+                    print('Warning: Could not resolve action ID, logging is disabled!')
+            except:
                 self.heat_action_id = None
                 print('Warning: Could not resolve action ID, logging is disabled!')
 
@@ -57,11 +72,16 @@ class HVAC():
 
         self.retrieve_lags()
 
+        self.schedule = Schedule(self.zone)
+
     def retrieve_lags(self):
-        session = get_session()
-        action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
-        self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
-        session.close()
+        try:
+            session = get_session()
+            action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
+            self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
+            session.close()
+        except:
+            self.heat_off_lag, self.heat_on_lag = 0., 0.
 
     def update_lags(self, num_recent_actions=2, overwrite=False):
         above, below = self.check_recent_lag(num_recent_actions=num_recent_actions)
@@ -157,14 +177,14 @@ class HVAC():
     def check_recent_temperature(self, minutes=5, verbose=False):
         session = get_session()
         indoor_temperatures = session.query(
-                Temperature.location,
-                func.sum(Temperature.value) / func.count(Temperature.value)
-            )\
-            .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes))\
-            .join(Sensor)\
-            .filter(Sensor.user == self.user)\
-            .filter(Sensor.zone == self.zone)\
-            .group_by(Temperature.location)\
+            Temperature.location,
+            func.sum(Temperature.value) / func.count(Temperature.value)
+        ) \
+            .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
+            .join(Sensor) \
+            .filter(Sensor.user == self.user) \
+            .filter(Sensor.zone == self.zone) \
+            .group_by(Temperature.location) \
             .all()
         session.close()
         if verbose:
@@ -224,7 +244,7 @@ class HVAC():
         temp_lag_on = []
         temp_lag_off = []
 
-        for row in df2.dropna(subset=['heat','target']).T.iteritems():
+        for row in df2.dropna(subset=['heat', 'target']).T.iteritems():
             if row[1]['heat'] == 1:
                 heat_cusp = df2.ix[row[0]:row[0] + timedelta(minutes=minutes)].idxmin()['temp']
                 if not pd.isnull(heat_cusp):
@@ -247,66 +267,93 @@ class HVAC():
 
 
 class Schedule():
+    def __init__(self, zone):
+        self.zone = zone
+        self.schedule = self.update_local_schedule()
+        self.override = None
+        self.override_expiration = None
 
-    def __init__(self):
-        self.schedule = self.default_temperatures()
+    def get_override_messages(self):
+        """
+        Read the messages table for any override messages
+        :return:
+        """
+        try:
+            session = get_session()
+            results = session.query(Message)\
+                .filter(Message.user == local_settings.USER_NUMBER)\
+                .filter(Message.received == False)\
+                .filter(Message.type == 'temperature override')\
+                .order_by(Message.record_time.asc())\
+                .all()
 
-    @staticmethod
-    def default_temperatures():
+            for msg in results:
+                msg_dict = json.loads(msg.json)
+                target = msg_dict['target']
+                expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                zone = int(msg_dict['zone'])
+
+                for location, tgt in target.iteritems():
+                    target[str(location)] = float(tgt)
+
+                if zone == self.zone:
+                    self.override = target
+                    self.override_expiration = expiration
+
+                    msg.received = True
+
+            session.commit()
+
+        except IndexError:
+            # This error will occur if there are no unread messages
+            pass
+
+        finally:
+            session.close()
+
+        return
+
+    def update_local_schedule(self):
         session = get_session()
-        results = session.query(Sensor)\
-            .filter(Sensor.user == local_settings.USER_NUMBER)\
-            .filter(Sensor.indoors == True)\
+        results = session.query(ThermostatSchedule, Sensor) \
+            .filter(ThermostatSchedule.zone == self.zone) \
+            .filter(ThermostatSchedule.zone == Sensor.zone) \
+            .filter(ThermostatSchedule.user == local_settings.USER_NUMBER) \
+            .filter(ThermostatSchedule.user == Sensor.user) \
             .all()
-
         session.close()
-        all_locations = [r.location for r in results]
-        sched = {
-            l: {
-                'Weekdays': [
-                    (0, 60.),
-                    (630, 66.),
-                    (715, 64.),
-                    (1715, 66.),
-                    (2230, 62.),
-                ],
-                'Weekends': [
-                    (0, 60.),
-                    (800, 67.),
-                    (1715, 68.),
-                    (2230, 60.),
-                ]
-            }
-            for l in all_locations if l != 'Bedroom'
-        }
 
-        sched['Bedroom'] = {
-            'Weekdays': [
-                (0, 60.),
-                (645, 66.),
-                (730, 60.),
-                (2000, 68.),
-                (2230, 60.),
-            ],
-            'Weekends': [
-                (0, 60.),
-                (800, 66.),
-                (1000, 60.),
-                (2100, 64.),
-                (2230, 60.),
-            ]
-        }
-        return sched
+        schedule = {}
+        for r in results:
+            schedule[r[1].location] = {}
+
+        for r in results:
+            schedule[r[1].location][r[0].day] = []
+
+        for r in results:
+            if r[0].minute == 0:
+                minute = '00'
+            else:
+                minute = str(r[0].minute)
+
+            time = int(str(r[0].hour) + minute)
+            schedule[r[1].location][r[0].day].append((time, float(r[0].target)))
+
+        return schedule
 
     def current_target_temps(self):
-        is_weekend = datetime.now().strftime('%a') in ['Sat', 'Sun']
+        if self.override is not None:
+            if datetime.now() >= self.override_expiration:
+                self.override = None
+                self.override_expiration = None
+            else:
+                return self.override
+
+        weekday = datetime.now().weekday()
         current_time = int(datetime.now().strftime('%H%M'))
         target = {}
         for room, day in self.schedule.iteritems():
-            if is_weekend:
-                temp = day['Weekends']
-            else:
-                temp = day['Weekdays']
+            temp = day[weekday]
 
             if current_time < temp[0][0]:
                 target[room] = temp[0][1]
@@ -318,14 +365,14 @@ class Schedule():
 
 
 def main(hvac, verbosity=0):
-
-    # Placeholder:
-    current_targets = Schedule().current_target_temps()
+    hvac.schedule.get_override_messages()
+    current_targets = hvac.schedule.current_target_temps()
 
     try:
         room_temps = hvac.check_recent_temperature(minutes=1)
     except Exception as e:
         print('Exception, falling back to local sensor.')
+        room_temps = {}
         for location, serial_number in hvac.fallback_sensors:
             is_on, room_temps[location] = read_temp_sensor(serial_number)
             if not is_on:
@@ -340,11 +387,11 @@ def main(hvac, verbosity=0):
         if target is None:
             continue
 
-
         deltas[room] = room_temps[room] - target
 
         if verbosity >= 2:
-            print("%s, %s: %.2f, %.2f, %.2f" % (datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
+            print("%s, %s: %.2f, %.2f, %.2f" % (
+            datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
 
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
@@ -354,6 +401,7 @@ def main(hvac, verbosity=0):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--verbosity', type=int, default=0)
     parser.add_argument('--disable-log', default=True, action='store_false')
@@ -364,9 +412,9 @@ if __name__ == '__main__':
     dry_run = args.dry_run
 
     session = get_session()
-    available_actions = session.query(User)\
-        .filter(User.id == local_settings.USER_NUMBER)\
-        .join(Action)\
+    available_actions = session.query(User) \
+        .filter(User.id == local_settings.USER_NUMBER) \
+        .join(Action) \
         .filter(Action.unit == local_settings.UNIT_NUMBER)
     session.close()
 

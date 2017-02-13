@@ -1,1 +1,1 @@
-python -m thermo.control.main
+python -m thermo.control.master

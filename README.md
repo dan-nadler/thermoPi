@@ -10,6 +10,7 @@ Create a `local_settings.py` file in `thermo/` and add:
 
 ```python
 from collections import namedtuple
+from RPi.GPIO import BCM
 
 def convert(dictionary):
     return namedtuple('GenericDict', dictionary.keys())(**dictionary)
@@ -44,6 +45,6 @@ Currently, the only available action is `'HEAT'`, which controls a heating syste
 (furnace, in my case) via a 2-wire thermostat line attached to a relay.
 
 # Usage
-Use `python -m thermo.control.main` on each raspberry pi to run thermo.
+Use `python -m thermo.control.master` on each raspberry pi to run thermo.
 
 This will detect the attached sensors and available actions via the database and `local_settings.py` file, and perform them in a loop.

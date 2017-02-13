@@ -1,9 +1,9 @@
-#!/usr/bin/python
 from thermo import local_settings
 from thermo.common.models import *
 from thermo.control import thermostat
 from thermo.sensor import thermal
 import time
+from collections import namedtuple
 
 def main(available_actions, available_sensors, structs, **kwargs):
 
@@ -24,18 +24,32 @@ def main(available_actions, available_sensors, structs, **kwargs):
 
 def setup(**kwargs):
     # Get all available actions and sensors for this unit
-    session = get_session()
-    unit = session.query(Unit).filter(Unit.user == local_settings.USER_NUMBER).filter(
-        Unit.id == local_settings.UNIT_NUMBER).all()
+    try:
+        session = get_session()
+        unit = session.query(Unit).filter(Unit.user == local_settings.USER_NUMBER).filter(
+            Unit.id == local_settings.UNIT_NUMBER).all()
 
-    if len(unit) > 1:
-        raise Exception("Non-unique unit and user combination")
+        if len(unit) > 1:
+            raise Exception("Non-unique unit and user combination")
 
-    unit = unit[0]
+        unit = unit[0]
 
-    available_sensors = unit.sensors
-    available_actions = unit.actions
-    session.close()
+        available_sensors = unit.sensors
+        available_actions = unit.actions
+        session.close()
+    except:
+        available_sensors = [
+            Sensor(
+                unit=local_settings.UNIT_NUMBER,
+                user=local_settings.USER_NUMBER,
+                serial_number=local_settings.FALLBACK['SERIAL NUMBER'],
+                location=local_settings.FALLBACK['LOCATION'],
+                indoors=True
+            )
+        ]
+
+        if 'HEAT' in local_settings.GPIO_PINS:
+            available_actions = [Action(name='HEAT', zone=local_settings.FALLBACK['ZONE'])]
 
     structs = {}
     for a in available_actions:
