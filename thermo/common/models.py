@@ -71,15 +71,13 @@ class User(Base):
 class ThermostatSchedule(Base):
     __tablename__ = 'thermostat_schedule'
     id = Column(Integer, autoincrement=True, primary_key=True, index=True)
-    day = Column(Integer, index=True, nullable=False)
-    hour = Column(Integer, index=True, nullable=False)
-    minute = Column(Integer, index=True, nullable=False)
-    target = Column(Float, nullable=False)
     user = Column(Integer, ForeignKey('user.id'), nullable=False)
     zone = Column(Integer, ForeignKey('zone.id'), nullable=False)
+    schedule = Column(BLOB, nullable=False)
+    name = Column(String(250))
 
     def __repr__(self):
-        return "Zone {0}: {1} @ {2}:{3}".format(self.zone, self.target, self.hour, self.minute)
+        return "{0} for zone {1} for user {2}".format(self.name, self.zone, self.user)
 
 
 class Zone(Base):
