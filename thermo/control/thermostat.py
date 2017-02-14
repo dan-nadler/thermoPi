@@ -313,31 +313,19 @@ class Schedule():
 
         return
 
-    def update_local_schedule(self):
+    def update_local_schedule(self, name='Default'):
         session = get_session()
-        results = session.query(ThermostatSchedule, Sensor) \
+        results = session.query(ThermostatSchedule) \
             .filter(ThermostatSchedule.zone == self.zone) \
-            .filter(ThermostatSchedule.zone == Sensor.zone) \
             .filter(ThermostatSchedule.user == local_settings.USER_NUMBER) \
-            .filter(ThermostatSchedule.user == Sensor.user) \
+            .filter(ThermostatSchedule.name == name) \
             .all()
+
+        if len(results) > 1:
+            print("Multiple schedules found, using {0}".format(results[0].name))
+
+        schedule = json.loads(results[0].schedule)
         session.close()
-
-        schedule = {}
-        for r in results:
-            schedule[r[1].location] = {}
-
-        for r in results:
-            schedule[r[1].location][r[0].day] = []
-
-        for r in results:
-            if r[0].minute == 0:
-                minute = '00'
-            else:
-                minute = str(r[0].minute)
-
-            time = int(str(r[0].hour) + minute)
-            schedule[r[1].location][r[0].day].append((time, float(r[0].target)))
 
         return schedule
 
@@ -353,13 +341,13 @@ class Schedule():
         current_time = int(datetime.now().strftime('%H%M'))
         target = {}
         for room, day in self.schedule.iteritems():
-            temp = day[weekday]
+            temp = day[str(weekday)]
 
-            if current_time < temp[0][0]:
+            if current_time < int(temp[0][0]):
                 target[room] = temp[0][1]
             else:
                 for hour, tgt in temp:
-                    if current_time > hour:
+                    if current_time > int(hour):
                         target[room] = tgt
         return target
 
