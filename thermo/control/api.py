@@ -1,18 +1,20 @@
-from thermo.common.models import *
-from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
+from thermo.common.models import *
 
 
-def set_constant_temperature(user, zone, temperature, expiration):
+@duplicate_locally
+def set_constant_temperature(user, zone, temperature, expiration, local=False):
     """
     Send message to override temperature schedule for all sensors attached to the specified zone
     :param user: user id
     :param zone: zone affected
     :param temperature: float: temperature target
     :param expiration: datetime for expiration of temperature target
+    :param local: Use the local SQLite database if true
     :return:
     """
-    session = get_session()
+    session = get_session(local=local)
     results = session.query(Sensor).filter(Sensor.user==user).filter(Sensor.zone==zone)
     session.close()
 
@@ -28,23 +30,20 @@ def set_constant_temperature(user, zone, temperature, expiration):
 
     j = json.dumps(message)
 
-    session = get_session()
+    session = get_session(local=local)
     new_message = Message(record_time=datetime.now(), user=user, json=j, type='temperature override')
     session.add(new_message)
     session.commit()
     session.close()
     return
 
-if __name__ == '__main__':
-    set_constant_temperature(1,1,60,datetime.now()+timedelta(seconds=30))
-
-def get_schedules(user):
+def get_schedules(user, local=False):
     """
     Retrieve all of a user's thermostat schedules as a python dictionary
     :param user:
     :return:
     """
-    session = get_session()
+    session = get_session(local=local)
     results = session.query(ThermostatSchedule, Zone)\
         .filter(ThermostatSchedule.zone == Zone.id)\
         .filter(ThermostatSchedule.user == user)\
@@ -57,7 +56,8 @@ def get_schedules(user):
 
     return response
 
-def set_schedule(user, zone, name, schedule):
+@duplicate_locally
+def set_schedule(user, zone, name, schedule, local=False):
     """
     Create a new thermostat schedule
     :param user:
@@ -66,7 +66,7 @@ def set_schedule(user, zone, name, schedule):
     :param schedule:
     :return:
     """
-    session = get_session()
+    session = get_session(local=local)
     results = session.query(ThermostatSchedule)\
         .filter(ThermostatSchedule.zone == zone)\
         .filter(ThermostatSchedule.user == user)\
@@ -83,7 +83,8 @@ def set_schedule(user, zone, name, schedule):
 
     return
 
-def update_schedule(user, zone, name, schedule):
+@duplicate_locally
+def update_schedule(user, zone, name, schedule, local=False):
     """
     Update an existing thermostat schedule
     :param user:
@@ -92,7 +93,7 @@ def update_schedule(user, zone, name, schedule):
     :param schedule:
     :return:
     """
-    session = get_session()
+    session = get_session(local=local)
     results = session.query(ThermostatSchedule) \
         .filter(ThermostatSchedule.zone == zone) \
         .filter(ThermostatSchedule.user == user) \
@@ -110,3 +111,6 @@ def update_schedule(user, zone, name, schedule):
     session.close()
 
     return
+
+if __name__ == '__main__':
+    set_constant_temperature(1,1,60,datetime.now()+timedelta(seconds=30))

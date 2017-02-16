@@ -15,6 +15,7 @@ from RPi.GPIO import BCM
 def convert(dictionary):
     return namedtuple('GenericDict', dictionary.keys())(**dictionary)
 
+# The database where thermoPi data is stored
 DATABASE = {
     'TYPE': 'mysql+___',
     'HOST': 'xxx.xxx.xxx.xxx',
@@ -26,14 +27,24 @@ DATABASE = {
 
 DATABASE = convert(DATABASE)
 
-USER_NUMBER = 1
-UNIT_NUMBER = 1 # For multiple Raspberry Pis, assign a unit number and record it in the `unit` table in your database
+# The path for an SQLite database where a local copy of some information is stored in case the database cannot be reached
+# This database is created automatically by thermo.common.models
+LOCAL_DATABASE_PATH = '/home/pi/thermo.db'
 
-GPIO_MODE = BCM
+USER_NUMBER = 1 # Your user ID number
+UNIT_NUMBER = 2 # A unique ID number you assign to each Raspberry Pi
+
+GPIO_MODE = BCM # The mode for designating GPIO pins
 GPIO_PINS = {
-    'HEAT': 25 # GPIO Pin for Heating relay (required for thermo.control.thermostat, only)
+    'HEAT': 17 # The GPIO pin that the heat control relay is connected to
 }
 
+# A local sensor that the heating control algorithm will fall back to in the event that the database cannot be reached
+FALLBACK = {
+    'LOCATION': 'Sensor Name Here', # the sensor's name
+    'SERIAL NUMBER': '28-0416930a31ff', # the sensor's serial number
+    'ZONE': 1 # the heating zone the sensor is assigned to
+}
 ```
 
 ## Database
