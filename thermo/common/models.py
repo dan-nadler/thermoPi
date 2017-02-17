@@ -52,7 +52,7 @@ def copy_data_to_local(user):
 
 def duplicate_locally(function):
     """
-    Writes data to the local SQLite database in addition to the remote database
+    Call the function with the local SQLite database in addition to the remote database
     :param function:
     :return:
     """
@@ -60,13 +60,35 @@ def duplicate_locally(function):
         try :
             function(*args, local=False, **kwargs)
         except Exception as e:
-            print('Failed writing to remote database.')
+            print('Failed using remote database.')
 
         try:
             function(*args, local=True, **kwargs)
         except Exception as e:
-            print('Failed writing to local database.')
+            print('Failed using local database.')
             raise(e)
+
+        return
+
+    return wrapper
+
+def fallback_locally(function):
+    """
+    Call the function with the local SQLite database if the remote database connection fails
+    :param function:
+    :return:
+    """
+    def wrapper(*args, **kwargs):
+        try :
+            function(*args, local=False, **kwargs)
+        except Exception as e:
+            print('Failed using remote database.')
+
+            try:
+                function(*args, local=True, **kwargs)
+            except Exception as e:
+                print('Failed using local database.')
+                raise(e)
 
         return
 
@@ -79,7 +101,7 @@ class Temperature(Base):
     __tablename__ = 'temperature'
     id = Column(Integer, autoincrement=True, index=True)
     value = Column(Float)
-    record_time = Column(DateTime, primary_key=True)
+    record_time = Column(DateTime, primary_key=True, index=True)
     location = Column(String(250))
     sensor = Column(Integer, ForeignKey('sensor.id'), primary_key=True, index=True)
 

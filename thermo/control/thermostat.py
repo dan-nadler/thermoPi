@@ -174,7 +174,7 @@ class HVAC():
             except AssertionError:
                 print("Heating relay check failed, did you assign the correct GPIO heat_pin?")
 
-    def check_recent_temperature(self, minutes=5, verbose=False):
+    def check_recent_temperature(self, minutes=1, verbose=False):
         session = get_session()
         indoor_temperatures = session.query(
             Temperature.location,
@@ -266,7 +266,7 @@ class HVAC():
         return np.mean(temp_lag_off), np.mean(temp_lag_on)
 
 
-class Schedule():
+class Schedule(object):
     def __init__(self, zone):
         self.zone = zone
         self.schedule = self.update_local_schedule()

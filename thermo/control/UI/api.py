@@ -1,6 +1,10 @@
 import json
 from datetime import datetime, timedelta
 from thermo.common.models import *
+from sqlalchemy import func
+from thermo import local_settings
+from thermo.sensor.thermal import read_temp_sensor
+from thermo.control.thermostat import Schedule
 
 
 @duplicate_locally
@@ -37,6 +41,7 @@ def set_constant_temperature(user, zone, temperature, expiration, local=False):
     session.close()
     return
 
+@fallback_locally
 def get_schedules(user, local=False):
     """
     Retrieve all of a user's thermostat schedules as a python dictionary
@@ -112,5 +117,72 @@ def update_schedule(user, zone, name, schedule, local=False):
 
     return
 
-if __name__ == '__main__':
-    set_constant_temperature(1,1,60,datetime.now()+timedelta(seconds=30))
+def get_current_room_temperatures(user, zone, minutes=1):
+    try:
+        session = get_session()
+        indoor_temperatures = session.query(
+            Temperature.location,
+            func.sum(Temperature.value) / func.count(Temperature.value)
+        ) \
+            .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
+            .join(Sensor) \
+            .filter(Sensor.user == user) \
+            .filter(Sensor.zone == zone) \
+            .group_by(Temperature.location) \
+            .all()
+        session.close()
+
+        room_temps ={i[0]: i[1] for i in indoor_temperatures}
+
+    except Exception as e:
+        print('Exception, falling back to local sensor.')
+        room_temps = {}
+        is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(local_settings.FALLBACK['SERIAL NUMBER'])
+        if not is_on:
+            print('EMERGENCY: Fallback sensor unavailable!')
+            # TODO fallback to predictive model
+
+    return room_temps
+
+def get_current_target_temperatures(zone):
+    schedule = ScheduleAPI(zone)
+    schedule.get_override_messages()
+    targets = schedule.current_target_temps()
+    return targets
+
+class ScheduleAPI(Schedule):
+
+    def __init__(self, zone):
+        super(ScheduleAPI, self).__init__(zone)
+
+    def get_override_messages(self):
+        try:
+            session = get_session()
+            results = session.query(Message)\
+                .filter(Message.user == local_settings.USER_NUMBER)\
+                .filter(Message.received == True)\
+                .filter(Message.type == 'temperature override')\
+                .order_by(Message.record_time.asc())\
+                .all()
+
+            for msg in results:
+                msg_dict = json.loads(msg.json)
+                target = msg_dict['target']
+                expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                zone = int(msg_dict['zone'])
+
+                for location, tgt in target.iteritems():
+                    target[str(location)] = float(tgt)
+
+                if zone == self.zone:
+                    self.override = target
+                    self.override_expiration = expiration
+
+        except IndexError:
+            # This error will occur if there are no unread messages
+            pass
+
+        finally:
+            session.close()
+
+        return
