@@ -144,11 +144,12 @@ def get_current_room_temperatures(user, zone, minutes=1):
 
     return room_temps
 
-def get_current_target_temperatures(zone):
+def get_thermostat_schedule(zone):
     schedule = ScheduleAPI(zone)
     schedule.get_override_messages()
     targets = schedule.current_target_temps()
-    return targets
+    next_targets = schedule.get_next_target_temps()
+    return targets, next_targets
 
 class ScheduleAPI(Schedule):
 
@@ -186,3 +187,4 @@ class ScheduleAPI(Schedule):
             session.close()
 
         return
+

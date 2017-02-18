@@ -340,17 +340,64 @@ class Schedule(object):
         weekday = datetime.now().weekday()
         current_time = int(datetime.now().strftime('%H%M'))
         target = {}
+
+        # for each room-day schedule
         for room, day in self.schedule.iteritems():
+
+            # get today's schedule
             temp = day[str(weekday)]
 
+            # if current time is before the first scheduled target
             if current_time < int(temp[0][0]):
-                target[room] = temp[0][1]
+                # then, get the last target of the previous day's schedule
+                previous_weekday = (datetime.now() - timedelta(days=1)).weekday()
+                target[room] = day[str(previous_weekday)][-1][1]
             else:
                 for hour, tgt in temp:
                     if current_time > int(hour):
                         target[room] = tgt
         return target
 
+    def get_next_target_temps(self):
+        """
+        Get the next scheduled target temperature for each room.
+        :return: dict<room:dict<datetime:target>>
+        """
+        weekday = datetime.now().weekday()
+        current_time = int(datetime.now().strftime('%H%M'))
+        target = {}
+
+        tgt_date = lambda x: datetime.now().replace(hour=int(x[:2]), minute=int(x[2:]), second=0, microsecond=0)
+
+        # for each room-day schedule
+        for room, day in self.schedule.iteritems():
+
+            # get today's schedule
+            temp = day[str(weekday)]
+
+            # if current time is before the first scheduled time
+            if current_time < int(temp[0][0]):
+                # then, get the first target of the current day
+                next_date = tgt_date(temp[0][0])
+                target[room] = ( next_date, temp[0][1] )
+            else:
+                for i in range(len(temp)):
+                    hour, tgt = temp[i]
+                    # if the current time is after the scheduled time
+                    if current_time > int(hour):
+                        # try getting the next target
+                        try:
+                            next_date = tgt_date(temp[i+1][0])
+                            target[room] = ( next_date, temp[i+1][1] )
+
+                        # otherwise, get first target of next day
+                        except IndexError:
+                            next_weekday = (datetime.now() + timedelta(days=1)).weekday()
+                            h = day[str(next_weekday)][0][0]
+                            next_date = tgt_date(h) + timedelta(days=1)
+                            target[room] = ( next_date, day[str(next_weekday)][0][1] )
+
+        return target
 
 def main(hvac, verbosity=0):
     hvac.schedule.get_override_messages()

@@ -5,20 +5,23 @@ import numpy as np
 from datetime import datetime, timedelta
 
 
-def aggregate_temperatures(temperatures, minutes=1, method='Median'):
+def aggregate_temperatures(schedule_dict, method='Median'):
 
-    temp_list = [value for key, value in temperatures.iteritems()]
+    value_list = [value for key, value in schedule_dict.iteritems()]
 
     if method == 'Median':
-        current_temp = np.median(temp_list)
+        output = np.median(value_list)
+    elif method == 'DateMin':
+        output = min(value_list)
     else:
-        current_temp = np.median(temp_list)
+        output = np.median(value_list)
 
-    return current_temp
+    return output
 
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 zone = 1
+
 
 @app.route('/', methods=['POST', 'GET'])
 @app.route('/index', methods=['POST', 'GET'])
@@ -26,11 +29,16 @@ def index():
     minutes = 1
 
     room_temps = get_current_room_temperatures(local_settings.USER_NUMBER, zone, minutes)
-    room_targets = get_current_target_temperatures(zone)
+    room_targets, next_targets = get_thermostat_schedule(zone)
+
+    next_target_dates = {room: hour for room, (hour, target) in next_targets.iteritems()}
+    next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
 
     context = {
         'current_temp': aggregate_temperatures(room_temps),
-        'current_target': aggregate_temperatures(room_targets)
+        'current_target': aggregate_temperatures(room_targets),
+        'next_target': aggregate_temperatures(next_target_temps),
+        'next_target_start_time': aggregate_temperatures(next_target_dates, method='DateMin').strftime('%I:%M %p')
     }
 
     return render_template('index.html', **context)
