@@ -1,9 +1,10 @@
+import time
+
 from thermo import local_settings
 from thermo.common.models import *
 from thermo.control import thermostat
 from thermo.sensor import thermal
-import time
-from collections import namedtuple
+
 
 def main(available_actions, available_sensors, structs, **kwargs):
 
@@ -24,6 +25,8 @@ def main(available_actions, available_sensors, structs, **kwargs):
 
 def setup(**kwargs):
     # Get all available actions and sensors for this unit
+    available_actions = None
+
     try:
         session = get_session()
         unit = session.query(Unit).filter(Unit.user == local_settings.USER_NUMBER).filter(
@@ -54,7 +57,7 @@ def setup(**kwargs):
     structs = {}
     for a in available_actions:
         if a.name == 'HEAT':
-            structs['HVAC'] = thermostat.HVAC(a.zone, log=kwargs.get('log', True))
+            structs['HVAC'] = thermostat.HVAC(a.zone, log=kwargs.get('log', True), schedule=kwargs.get('schedule', None))
             if kwargs.get('initial', False):
                 if verbosity >= 2:
                     print('Testing relays for HVAC.')
@@ -91,7 +94,12 @@ if __name__ == '__main__':
             if verbosity >= 1:
                 print('Updating available actions and sensors.')
             try:
-                available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity)
+                schedule = structs['HVAC'].schedule
+            except:
+                schedule = None
+
+            try:
+                available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, schedule=schedule)
             except:
                 pass
 

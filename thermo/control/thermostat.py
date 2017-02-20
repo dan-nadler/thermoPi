@@ -1,17 +1,19 @@
+import json
 import time
 from datetime import datetime, timedelta
+
 import RPi.GPIO as GPIO
 import numpy as np
+import pandas as pd
 from sqlalchemy import func
+
 from thermo import local_settings
 from thermo.common.models import *
 from thermo.sensor.thermal import read_temp_sensor
-import pandas as pd
-import json
 
 
 class HVAC():
-    def __init__(self, zone, log=True):
+    def __init__(self, zone, log=True, schedule=None):
 
         self.log = log
         self.zone = zone
@@ -72,7 +74,10 @@ class HVAC():
 
         self.retrieve_lags()
 
-        self.schedule = Schedule(self.zone)
+        if schedule is not None:
+            self.schedule = schedule
+        else:
+            self.schedule = Schedule(self.zone)
 
     def retrieve_lags(self):
         try:
