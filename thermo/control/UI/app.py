@@ -1,8 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for
-from thermo.control.UI.api import *
-from thermo import local_settings
 import numpy as np
-from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for
+
+from thermo.control.UI.api import *
 
 
 def aggregate_temperatures(schedule_dict, method='Median'):
@@ -34,11 +33,14 @@ def index():
     next_target_dates = {room: hour for room, (hour, target) in next_targets.iteritems()}
     next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
 
+    status = get_action_status(local_settings.USER_NUMBER, zone)
+
     context = {
         'current_temp': aggregate_temperatures(room_temps),
         'current_target': aggregate_temperatures(room_targets),
         'next_target': aggregate_temperatures(next_target_temps),
-        'next_target_start_time': aggregate_temperatures(next_target_dates, method='DateMin').strftime('%I:%M %p')
+        'next_target_start_time': aggregate_temperatures(next_target_dates, method='DateMin').strftime('%I:%M %p'),
+        'status': status,
     }
 
     return render_template('index.html', **context)

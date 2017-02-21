@@ -1,34 +1,55 @@
 {% extends "base.html" %}
 
 {% block body %}
-    <div id="current-temp">
-        <h2>Current Temperature:</h2>
-        <h1>{{ '%0.2f' | format(current_temp|float) }} &#176;F</h1>
-    </div>
+    <div class="container">
+        <div class="page-header">
+            <div class="row">
+                <div id="current_tgt" class="col-xs-6">
+                    <h3>{{ '%0.1f' | format(current_target|float) }} &#176;F</h3>
+                    <div class="thumbnail">
+                        {% if status %}
+                            {% for s, d in status.iteritems() %}
+                                <div class="status">
+                                    Last action:
+                                    {% if d.status %}
+                                        On
+                                    {% else %}
+                                        Off
+                                    {% endif %}
+                                    @ {{ d.time.strftime('%I:%M %p') }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                        <div id="next-temp">
+                            Next: {{ '%0.2f' | format(next_target|float) }} &#176;F @ {{ next_target_start_time|lower }}
+                        </div>
+                    </div>
+                </div>
 
-    <div id="current-temp">
-        <h3>Current Target:</h3>
-        <h3>{{ '%0.2f' | format(current_target|float) }} &#176;F</h3>
-    </div>
+                <div class="col-xs-2"></div>
 
-    <div id="next-temp">
-        <span>{{ '%0.2f' | format(next_target|float) }} &#176;F @ {{ next_target_start_time|lower }}</span>
-    </div>
+                <div id="current-temp" class="col-xs-4">
+                    <h1 style="font-size: 64px;">
+                        {{ '%0.1f' | format(current_temp|float) }} &#176;F
+                    </h1>
+                </div>
 
-    <div id="set-override">
-        <h3>Set Static Temperature:</h3>
-        <form method="post" action="./override.html">
-            <div>
+            </div>
+        </div>
+
+        <div id="set-override" class="form-group">
+            <h3>Set Static Temperature</h3>
+            <form method="post" action="./override.html">
+
                 <label for="target">Temperature:</label>
                 <input type="text" name="target" id="target"/>
-            </div>
-            <div>
+
                 <label for="expiration">Hours in effect:</label>
                 <input type="text" name="hours" id="expiration"/>
-            </div>
-            <div>
+
                 <input type="submit" name="submit">
-            </div>
-        </form>
+
+            </form>
+        </div>
     </div>
 {% endblock %}

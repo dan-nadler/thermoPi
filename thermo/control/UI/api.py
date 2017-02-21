@@ -1,10 +1,12 @@
 import json
 from datetime import datetime, timedelta
-from thermo.common.models import *
+
 from sqlalchemy import func
+
 from thermo import local_settings
-from thermo.sensor.thermal import read_temp_sensor
+from thermo.common.models import *
 from thermo.control.thermostat import Schedule
+from thermo.sensor.thermal import read_temp_sensor
 
 
 @duplicate_locally
@@ -116,6 +118,28 @@ def update_schedule(user, zone, name, schedule, local=False):
     session.close()
 
     return
+
+def get_action_status(user, zone):
+    engine = get_engine()
+    result = engine.execute(
+        '''select record_time, value, target, unit.name as unit, action.name as name
+from action, action_log, unit
+where unit.user = {0}
+and action.unit = unit.id
+and action_log.action = action.id
+and action_log.record_time >= (NOW() - INTERVAL 12 HOUR )
+and action.zone = {1}
+order by record_time desc
+limit 1'''.format(user, zone)
+    )
+
+    last_action = result.fetchall()
+
+    status_dict = {}
+    for action in last_action:
+        status_dict[action.name.title()] = {'status': action.value == 1, 'time': action.record_time}
+
+    return status_dict
 
 def get_current_room_temperatures(user, zone, minutes=1):
     try:
