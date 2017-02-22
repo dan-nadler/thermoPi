@@ -46,12 +46,19 @@ def index():
     return render_template('index.html', **context)
 
 
-@app.route('/override.html', methods=['POST'])
+@app.route('/override', methods=['POST'])
 def override():
     temperature = request.form.get('target')
     expiration = datetime.now() + timedelta(hours=int(request.form.get('hours')))
     set_constant_temperature(local_settings.USER_NUMBER, zone, temperature, expiration)
     return redirect(url_for('index'))
+
+
+@app.route('/schedule', methods=['GET'])
+def schedule():
+    schedules = get_schedules(local_settings.USER_NUMBER)
+
+    return render_template('schedule.html', schedules=schedules)
 
 if __name__ == '__main__':
 

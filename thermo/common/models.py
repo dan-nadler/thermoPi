@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean, BLOB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
+
 from thermo.local_settings import DATABASE, LOCAL_DATABASE_PATH, USER_NUMBER
 
 
@@ -80,17 +81,17 @@ def fallback_locally(function):
     """
     def wrapper(*args, **kwargs):
         try :
-            function(*args, local=False, **kwargs)
+            results = function(*args, local=False, **kwargs)
         except Exception as e:
             print('Failed using remote database.')
 
             try:
-                function(*args, local=True, **kwargs)
+                results = function(*args, local=True, **kwargs)
             except Exception as e:
                 print('Failed using local database.')
                 raise(e)
 
-        return
+        return results
 
     return wrapper
 

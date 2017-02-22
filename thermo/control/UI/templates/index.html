@@ -4,7 +4,7 @@
     <div class="container">
         <div class="page-header">
             <div class="row">
-                <div id="current_tgt" class="col-xs-6">
+                <div id="current_tgt" class="col-sm-6">
                     <h3>{{ '%0.1f' | format(current_target|float) }} &#176;F</h3>
                     <div class="thumbnail">
                         {% if status %}
@@ -26,9 +26,9 @@
                     </div>
                 </div>
 
-                <div class="col-xs-2"></div>
+                <div class="col-sm-2"></div>
 
-                <div id="current-temp" class="col-xs-4">
+                <div id="current-temp" class="col-sm-4">
                     <h1 style="font-size: 64px;">
                         {{ '%0.1f' | format(current_temp|float) }} &#176;F
                     </h1>
@@ -39,7 +39,7 @@
 
         <div id="set-override" class="form-group">
             <h3>Set Static Temperature</h3>
-            <form method="post" action="./override.html">
+            <form method="post" action="./override">
 
                 <label for="target">Temperature:</label>
                 <input type="text" name="target" id="target"/>

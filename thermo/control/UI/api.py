@@ -55,13 +55,35 @@ def get_schedules(user, local=False):
         .filter(ThermostatSchedule.zone == Zone.id)\
         .filter(ThermostatSchedule.user == user)\
         .all()
+    session.close()
+
+    # TODO use datetime module for this instead?
+    days = {
+        '0': 'Monday',
+        '1': 'Tuesday',
+        '2': 'Wednesday',
+        '3': 'Thursday',
+        '4': 'Friday',
+        '5': 'Saturday',
+        '6': 'Sunday'
+    }
 
     response = {}
     for schedule, zone in results:
         response[zone.name] = {}
         response[zone.name][schedule.name] = json.loads(schedule.schedule)
 
-    return response
+    final_response = response
+    for schedule, zone in results:
+        for location, sched in response[zone.name][schedule.name].iteritems():
+            for day, t in sched.iteritems():
+                try:
+                    final_response[zone.name][schedule.name][location][days[day]] = response[zone.name][schedule.name][location][day]
+                    del final_response[zone.name][schedule.name][location][day]
+                except KeyError:
+                    pass
+
+    return final_response
 
 @duplicate_locally
 def set_schedule(user, zone, name, schedule, local=False):

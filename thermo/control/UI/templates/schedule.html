@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block body %}
+    <div class="container">
+        {% for zone, dict1 in schedules.iteritems() %}
+            <h1>{{ zone }}</h1>
+            {% for name, dict2 in dict1.iteritems() %}
+                <h2>{{ name }}</h2>
+                {% for location, schedule in dict2.iteritems() %}
+                    <div class="row">
+                        <h3>{{ location }}</h3>
+                        {% for day, l in schedule.iteritems() %}
+                            <div class="col-sm-1" style="width:14%">
+                                <h4>{{ day }}</h4>
+                                {% for hour, temp in l %}
+                                    <div class="row">
+                                        <div class="col-xs-6">
+                                            <p>{{ hour }}</p>
+                                        </div>
+                                        <div class="col-xs-6">
+                                            <p>{{ temp }}</p>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {#                    {% for day, l in schedule.iteritems() %}#}
+                    {#                        <ul>#}
+                    {#                            <li>#}
+                    {#                                {{ day }}#}
+                    {#                                <ul>#}
+                    {#                                    {% for hour, temp in l %}#}
+                    {#                                        <li>{{ hour }}: {{ temp }}</li>#}
+                    {#                                    {% endfor %}#}
+                    {#                                </ul>#}
+                    {#                            </li>#}
+                    {#                        </ul>#}
+                    {#                    {% endfor %}#}
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}
+    </div>
+{% endblock %}
