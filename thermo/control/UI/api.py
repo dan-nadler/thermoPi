@@ -21,7 +21,7 @@ def set_constant_temperature(user, zone, temperature, expiration, local=False):
     :return:
     """
     session = get_session(local=local)
-    results = session.query(Sensor).filter(Sensor.user==user).filter(Sensor.zone==zone)
+    results = session.query(Sensor).filter(Sensor.user == user).filter(Sensor.zone == zone)
     session.close()
 
     target = {}
@@ -43,6 +43,7 @@ def set_constant_temperature(user, zone, temperature, expiration, local=False):
     session.close()
     return
 
+
 @fallback_locally
 def get_schedules(user, local=False):
     """
@@ -51,9 +52,9 @@ def get_schedules(user, local=False):
     :return:
     """
     session = get_session(local=local)
-    results = session.query(ThermostatSchedule, Zone)\
-        .filter(ThermostatSchedule.zone == Zone.id)\
-        .filter(ThermostatSchedule.user == user)\
+    results = session.query(ThermostatSchedule, Zone) \
+        .filter(ThermostatSchedule.zone == Zone.id) \
+        .filter(ThermostatSchedule.user == user) \
         .all()
     session.close()
 
@@ -78,12 +79,39 @@ def get_schedules(user, local=False):
         for location, sched in response[zone.name][schedule.name].iteritems():
             for day, t in sched.iteritems():
                 try:
-                    final_response[zone.name][schedule.name][location][days[day]] = response[zone.name][schedule.name][location][day]
+                    final_response[zone.name][schedule.name][location][days[day]] = \
+                    response[zone.name][schedule.name][location][day]
                     del final_response[zone.name][schedule.name][location][day]
+
+                    new = []
+                    for hour, temp in final_response[zone.name][schedule.name][location][days[day]]:
+                        h = hour[:2]
+                        m = hour[2:]
+
+                        if int(h) >= 12:
+                            ap = 'pm'
+                        else:
+                            ap = 'am'
+
+                        if h == '00':
+                            h = '12'
+
+                        if int(h) > 12:
+                            h = int(h)-12
+                            if h < 10:
+                                h = '0'+str(h)
+                            else:
+                                h = str(h)
+
+                        new.append((h+':'+m+' '+ap, temp))
+
+                    final_response[zone.name][schedule.name][location][days[day]] = new
+
                 except KeyError:
                     pass
 
     return final_response
+
 
 @duplicate_locally
 def set_schedule(user, zone, name, schedule, local=False):
@@ -96,10 +124,10 @@ def set_schedule(user, zone, name, schedule, local=False):
     :return:
     """
     session = get_session(local=local)
-    results = session.query(ThermostatSchedule)\
-        .filter(ThermostatSchedule.zone == zone)\
-        .filter(ThermostatSchedule.user == user)\
-        .filter(ThermostatSchedule.name == name)\
+    results = session.query(ThermostatSchedule) \
+        .filter(ThermostatSchedule.zone == zone) \
+        .filter(ThermostatSchedule.user == user) \
+        .filter(ThermostatSchedule.name == name) \
         .all()
 
     if len(results) > 0:
@@ -111,6 +139,7 @@ def set_schedule(user, zone, name, schedule, local=False):
     session.close()
 
     return
+
 
 @duplicate_locally
 def update_schedule(user, zone, name, schedule, local=False):
@@ -141,6 +170,7 @@ def update_schedule(user, zone, name, schedule, local=False):
 
     return
 
+
 def get_action_status(user, zone):
     engine = get_engine()
     result = engine.execute(
@@ -163,6 +193,7 @@ limit 1'''.format(user, zone)
 
     return status_dict
 
+
 def get_current_room_temperatures(user, zone, minutes=1):
     try:
         session = get_session()
@@ -178,17 +209,19 @@ def get_current_room_temperatures(user, zone, minutes=1):
             .all()
         session.close()
 
-        room_temps ={i[0]: i[1] for i in indoor_temperatures}
+        room_temps = {i[0]: i[1] for i in indoor_temperatures}
 
     except Exception as e:
         print('Exception, falling back to local sensor.')
         room_temps = {}
-        is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(local_settings.FALLBACK['SERIAL NUMBER'])
+        is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(
+            local_settings.FALLBACK['SERIAL NUMBER'])
         if not is_on:
             print('EMERGENCY: Fallback sensor unavailable!')
             # TODO fallback to predictive model
 
     return room_temps
+
 
 def get_thermostat_schedule(zone):
     schedule = ScheduleAPI(zone)
@@ -197,19 +230,19 @@ def get_thermostat_schedule(zone):
     next_targets = schedule.get_next_target_temps()
     return targets, next_targets
 
-class ScheduleAPI(Schedule):
 
+class ScheduleAPI(Schedule):
     def __init__(self, zone):
         super(ScheduleAPI, self).__init__(zone)
 
     def get_override_messages(self):
         try:
             session = get_session()
-            results = session.query(Message)\
-                .filter(Message.user == local_settings.USER_NUMBER)\
-                .filter(Message.received == True)\
-                .filter(Message.type == 'temperature override')\
-                .order_by(Message.record_time.asc())\
+            results = session.query(Message) \
+                .filter(Message.user == local_settings.USER_NUMBER) \
+                .filter(Message.received == True) \
+                .filter(Message.type == 'temperature override') \
+                .order_by(Message.record_time.asc()) \
                 .all()
 
             for msg in results:
@@ -234,3 +267,18 @@ class ScheduleAPI(Schedule):
 
         return
 
+
+def check_local(request, token=None):
+    s = request.remote_addr.split('.')
+    if s[0] == '192' and s[1] == '168':
+        return
+    else:
+        session = get_session()
+        results = session.query(User).filter(User.id == local_settings.USER_NUMBER).all()[0]
+        key = results.api_key
+        session.close()
+
+        if request.args.get('controltoken', token) == key:
+            return
+        else:
+            raise Exception('Failed to validate.')

@@ -4,26 +4,29 @@
     <div class="container">
         <div class="page-header">
             <div class="row">
-                <div id="current_tgt" class="col-sm-6">
+                <div id="current-status" class="col-sm-6">
                     <h3>{{ '%0.1f' | format(current_target|float) }} &#176;F</h3>
-                    <div class="thumbnail">
-                        {% if status %}
-                            {% for s, d in status.iteritems() %}
-                                <div class="status">
-                                    Last action:
-                                    {% if d.status %}
-                                        On
-                                    {% else %}
-                                        Off
-                                    {% endif %}
-                                    @ {{ d.time.strftime('%I:%M %p') }}
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                        <div id="next-temp">
-                            Next: {{ '%0.2f' | format(next_target|float) }} &#176;F @ {{ next_target_start_time|lower }}
+                    <a href="./schedule">
+                        <div class="thumbnail">
+                            {% if status %}
+                                {% for s, d in status.iteritems() %}
+                                    <div class="status">
+                                        Last action:
+                                        {% if d.status %}
+                                            On
+                                        {% else %}
+                                            Off
+                                        {% endif %}
+                                        @ {{ d.time.strftime('%I:%M %p') }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                            <div id="next-temp">
+                                Next: {{ '%0.2f' | format(next_target|float) }} &#176;F
+                                @ {{ next_target_start_time|lower }}
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
 
                 <div class="col-sm-2"></div>
@@ -33,23 +36,33 @@
                         {{ '%0.1f' | format(current_temp|float) }} &#176;F
                     </h1>
                 </div>
-
             </div>
         </div>
 
-        <div id="set-override" class="form-group">
-            <h3>Set Static Temperature</h3>
-            <form method="post" action="./override">
+        <div class="row">
+            <div id="set-override" class="form-group">
+                <h3>Set Static Temperature</h3>
+                <form method="post" action="./override">
 
-                <label for="target">Temperature:</label>
-                <input type="text" name="target" id="target"/>
+                    <label for="target">Temperature:</label>
+                    <input type="text" name="target" id="target"/>
 
-                <label for="expiration">Hours in effect:</label>
-                <input type="text" name="hours" id="expiration"/>
+                    <label for="expiration">Hours in effect:</label>
+                    <input type="text" name="hours" id="expiration"/>
 
-                <input type="submit" name="submit">
+                    {% if controltoken != '' %}
+                        <input type="hidden" name="controltoken" value="{{ controltoken }}"/>
+                    {% endif %}
 
-            </form>
+                    <input type="submit" name="submit">
+
+                </form>
+            </div>
         </div>
+
+        <div class="row">
+            <a href="./schedule"><h2>View Schedules</h2></a>
+        </div>
+
     </div>
 {% endblock %}

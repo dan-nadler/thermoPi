@@ -1,3 +1,5 @@
+import urllib
+
 import numpy as np
 from flask import Flask, render_template, request, redirect, url_for
 
@@ -17,7 +19,6 @@ def aggregate_temperatures(schedule_dict, method='Median'):
 
     return output
 
-
 app = Flask(__name__, template_folder='templates')
 zone = 1
 
@@ -25,6 +26,7 @@ zone = 1
 @app.route('/', methods=['POST', 'GET'])
 @app.route('/index', methods=['POST', 'GET'])
 def index():
+    check_local(request)
     minutes = 1
 
     room_temps = get_current_room_temperatures(local_settings.USER_NUMBER, zone, minutes)
@@ -41,6 +43,7 @@ def index():
         'next_target': aggregate_temperatures(next_target_temps),
         'next_target_start_time': aggregate_temperatures(next_target_dates, method='DateMin').strftime('%I:%M %p'),
         'status': status,
+        'controltoken': request.args.get('controltoken', '')
     }
 
     return render_template('index.html', **context)
@@ -48,10 +51,13 @@ def index():
 
 @app.route('/override', methods=['POST'])
 def override():
+    check_local(request, token=request.form.get('controltoken',False))
+
     temperature = request.form.get('target')
     expiration = datetime.now() + timedelta(hours=int(request.form.get('hours')))
     set_constant_temperature(local_settings.USER_NUMBER, zone, temperature, expiration)
-    return redirect(url_for('index'))
+
+    return redirect(url_for('index')+'?'+urllib.urlencode(request.form))
 
 
 @app.route('/schedule', methods=['GET'])

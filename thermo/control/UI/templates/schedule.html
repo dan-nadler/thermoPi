@@ -1,45 +1,81 @@
 {% extends "base.html" %}
 
 {% block body %}
-    <div class="container">
+    {# Menu Level 1 -- Zones #}
+    <div role="tabpanel">
+        <ul class="nav nav-pills" role="tablist">
+            <li class="nav-item"><a style="color: #555; font-weight: bold;">Zones</a></li>
+            {% for zone, dict1 in schedules.iteritems() %}
+                <li class="nav-item">
+                    <a class="nav-link" href="#{{ loop.index }}-tab-zone" data-toggle="tab">{{ zone }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    {# Menu Level 2 -- Schedules #}
+    <div class="tab-content">
         {% for zone, dict1 in schedules.iteritems() %}
-            <h1>{{ zone }}</h1>
+            <div class="tab-pane" id="{{ loop.index }}-tab-zone" role="tabpanel">
+                <ul class="nav nav-pills" role="tablist">
+                    <li class="nav-item"><a style="color: #555; font-weight: bold;">Schedules</a></li>
+                    {% for name, dict2 in dict1.iteritems() %}
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="tab" href="#{{ loop.index }}-tab-name">{{ name }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endfor %}
+    </div>
+
+    {# Menu Level 3 -- Sensors #}
+    <div class="tab-content">
+        {% for zone, dict1 in schedules.iteritems() %}
             {% for name, dict2 in dict1.iteritems() %}
-                <h2>{{ name }}</h2>
-                {% for location, schedule in dict2.iteritems() %}
-                    <div class="row">
-                        <h3>{{ location }}</h3>
-                        {% for day, l in schedule.iteritems() %}
-                            <div class="col-sm-1" style="width:14%">
-                                <h4>{{ day }}</h4>
-                                {% for hour, temp in l %}
-                                    <div class="row">
-                                        <div class="col-xs-6">
-                                            <p>{{ hour }}</p>
-                                        </div>
-                                        <div class="col-xs-6">
-                                            <p>{{ temp }}</p>
-                                        </div>
+                <div class="tab-pane" id="{{ loop.index }}-tab-name" role="tabpanel">
+                    <ul class="nav nav-pills" role="tablist">
+                        <li class="nav-item"><a style="color: #555; font-weight: bold;">Sensors</a></li>
+                        {% for location, schedule  in dict2.iteritems() %}
+                            <li class="nav-item">
+                                <a class="nav-link" data-toggle="tab"
+                                   href="#{{ loop.index }}-tab-location">{{ location }}</a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+
+    {# Schedule Contnet #}
+    <div class="container-fluid" style="margin-top: 30px;">
+        <div class="tab-content">
+            {% for zone, dict1 in schedules.iteritems() %}
+                {% for name, dict2 in dict1.iteritems() %}
+                    {% for location, schedule in dict2.iteritems() %}
+                        <div class="tab-pane" id="{{ loop.index }}-tab-location" role="tabpanel">
+                            <div class="row">
+                                {% for day in ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] %}
+                                    <div class="col-sm-1" style="width:14%">
+                                        <h4>{{ day }}</h4>
+                                        {% for hour, temp in schedule[day] %}
+                                            <div class="row">
+                                                <div class="col-xs-6" style="width: 90px;;">
+                                                    <p>{{ hour }}</p>
+                                                </div>
+                                                <div class="col-xs-6" style="width: 20px;">
+                                                    <p>{{ temp }}</p>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
                                     </div>
                                 {% endfor %}
                             </div>
-                        {% endfor %}
-                    </div>
-
-                    {#                    {% for day, l in schedule.iteritems() %}#}
-                    {#                        <ul>#}
-                    {#                            <li>#}
-                    {#                                {{ day }}#}
-                    {#                                <ul>#}
-                    {#                                    {% for hour, temp in l %}#}
-                    {#                                        <li>{{ hour }}: {{ temp }}</li>#}
-                    {#                                    {% endfor %}#}
-                    {#                                </ul>#}
-                    {#                            </li>#}
-                    {#                        </ul>#}
-                    {#                    {% endfor %}#}
+                        </div>
+                    {% endfor %}
                 {% endfor %}
             {% endfor %}
-        {% endfor %}
+        </div>
     </div>
 {% endblock %}
