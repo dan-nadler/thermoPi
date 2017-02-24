@@ -6,6 +6,7 @@ import RPi.GPIO as GPIO
 import numpy as np
 import pandas as pd
 from sqlalchemy import func
+from sqlalchemy.exc import OperationalError
 
 from thermo import local_settings
 from thermo.common.models import *
@@ -48,7 +49,7 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
-            try:
+            def get_action_id():
                 session = get_session()
                 results = session.query(Action) \
                     .filter(Action.unit == self.unit) \
@@ -56,13 +57,21 @@ class HVAC():
                     .all()
                 session.close()
                 if len(results) == 1:
-                    self.heat_action_id = results[0].id
+                    heat_action_id = results[0].id
                 else:
-                    self.heat_action_id = None
+                    heat_action_id = None
                     print('Warning: Could not resolve action ID, logging is disabled!')
-            except:
-                self.heat_action_id = None
-                print('Warning: Could not resolve action ID, logging is disabled!')
+
+                return heat_action_id
+
+            try:
+                self.heat_action_id = get_action_id()
+            except OperationalError:
+                time.sleep(5) # possible network interruption, try again in 5 seconds
+                try:
+                    self.heat_action_id = get_action_id()
+                except Exception as e:
+                    raise(e)
 
         else:
             raise Exception('No configuration for heating found in thermo.common.local_settings.py')

@@ -74,8 +74,11 @@ if __name__ == '__main__':
     parser.add_argument('--disable-log', default=True, action='store_false')
     parser.add_argument('--dry-run', default=False, action='store_true')
     parser.add_argument('--sleep', default=10, type=int)
+    parser.add_argument('--boot-sleep', default=10, type=int)
 
     args = parser.parse_args()
+
+    time.sleep(args.boot_sleep)
 
     verbosity = args.verbosity
     log = args.disable_log
@@ -84,7 +87,12 @@ if __name__ == '__main__':
 
     if verbosity >= 1:
         print('Updating available actions and sensors.')
-    available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
+
+    try:
+        available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
+    except Exception as e:
+        print(e)
+        raise(e)
 
     i = 0
     while True:
