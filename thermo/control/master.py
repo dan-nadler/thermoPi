@@ -74,7 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--disable-log', default=True, action='store_false')
     parser.add_argument('--dry-run', default=False, action='store_true')
     parser.add_argument('--sleep', default=10, type=int)
-    parser.add_argument('--boot-sleep', default=10, type=int)
+    parser.add_argument('--boot-sleep', default=0, type=int)
 
     args = parser.parse_args()
 
@@ -102,9 +102,9 @@ if __name__ == '__main__':
             if verbosity >= 1:
                 print('Updating available actions and sensors.')
             try:
-                schedule = structs['HVAC'].schedule
+                schedule = structs['HVAC'].schedule # pass the existing schedule to HVAC if it is set
             except:
-                schedule = None
+                schedule = None # default, otherwise
 
             try:
                 available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, schedule=schedule)

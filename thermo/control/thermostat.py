@@ -282,8 +282,13 @@ class HVAC():
 
 class Schedule(object):
     def __init__(self, zone):
+        """
+        The Schedule class handles the retrieval and interpretation of temperature scheduling
+
+        :param zone: zone number
+        """
         self.zone = zone
-        self.schedule = self.update_local_schedule()
+        self.schedule, self.schedule_name = self.get_schedule()
         self.override = None
         self.override_expiration = None
 
@@ -327,21 +332,26 @@ class Schedule(object):
 
         return
 
-    def update_local_schedule(self, name='Default'):
-        session = get_session()
+    @fallback_locally
+    def get_schedule(self, local=False):
+        session = get_session(local=local)
         results = session.query(ThermostatSchedule) \
             .filter(ThermostatSchedule.zone == self.zone) \
             .filter(ThermostatSchedule.user == local_settings.USER_NUMBER) \
-            .filter(ThermostatSchedule.name == name) \
+            .filter(ThermostatSchedule.active == 1) \
             .all()
 
         if len(results) > 1:
             print("Multiple schedules found, using {0}".format(results[0].name))
 
         schedule = json.loads(results[0].schedule)
+        schedule_name = results[0].name
+
+        print('Schedule is now %s' % schedule_name)
+
         session.close()
 
-        return schedule
+        return schedule, schedule_name
 
     def current_target_temps(self):
         if self.override is not None:
@@ -414,6 +424,7 @@ class Schedule(object):
         return target
 
 def main(hvac, verbosity=0):
+    hvac.schedule.schedule, hvac.schedule.schedule_name = hvac.schedule.get_schedule()
     hvac.schedule.get_override_messages()
     current_targets = hvac.schedule.current_target_temps()
 

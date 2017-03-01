@@ -45,6 +45,26 @@ def set_constant_temperature(user, zone, temperature, expiration, local=False):
 
 
 @fallback_locally
+def get_available_schedules(user, zone, local=False):
+    """
+
+    :param user:
+    :param zone:
+    :param local:
+    :return: [(name, id), ...]
+    """
+    session = get_session(local=local)
+    results = session.query(ThermostatSchedule) \
+        .filter(ThermostatSchedule.zone == zone) \
+        .filter(ThermostatSchedule.user == user) \
+        .all()
+    session.close()
+
+    names = [(r.name, r.id) for r in results]
+
+    return names
+
+@fallback_locally
 def get_schedules(user, local=False):
     """
     Retrieve all of a user's thermostat schedules as a python dictionary
@@ -71,8 +91,11 @@ def get_schedules(user, local=False):
 
     response = {}
     for schedule, zone in results:
-        response[zone.name] = {}
-        response[zone.name][schedule.name] = json.loads(schedule.schedule)
+        try:
+            response[zone.name][schedule.name] = json.loads(schedule.schedule)
+        except KeyError:
+            response[zone.name] = {}
+            response[zone.name][schedule.name] = json.loads(schedule.schedule)
 
     final_response = response
     for schedule, zone in results:
@@ -140,6 +163,34 @@ def set_schedule(user, zone, name, schedule, local=False):
 
     return
 
+
+@duplicate_locally
+def activate_schedule(user, zone, id, local=False):
+    session = get_session(local)
+    results1 = session\
+        .query(ThermostatSchedule)\
+        .filter(ThermostatSchedule.id == id) \
+        .filter(ThermostatSchedule.user == user) \
+        .filter(ThermostatSchedule.zone == zone) \
+        .all()
+
+    if len(results1) > 1:
+        raise(Exception('Found multiple schedules for this id/user/zone combination. id={0}, user={1}, zone={2}'.format(id,user,zone)))
+
+    results1[0].active = 1
+
+    results2 = session \
+        .query(ThermostatSchedule) \
+        .filter(ThermostatSchedule.id != id) \
+        .filter(ThermostatSchedule.user == user) \
+        .filter(ThermostatSchedule.zone == zone) \
+        .all()
+    for r in results2:
+        r.active = 0
+
+    session.commit()
+    session.close()
+    return True
 
 @duplicate_locally
 def update_schedule(user, zone, name, schedule, local=False):
@@ -228,7 +279,8 @@ def get_thermostat_schedule(zone):
     schedule.get_override_messages()
     targets = schedule.current_target_temps()
     next_targets = schedule.get_next_target_temps()
-    return targets, next_targets
+
+    return targets, next_targets, schedule.schedule_name
 
 
 class ScheduleAPI(Schedule):

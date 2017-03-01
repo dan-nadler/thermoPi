@@ -38,8 +38,9 @@
                         <li class="nav-item"><a style="color: #555; font-weight: bold;">Sensors</a></li>
                         {% for location, schedule  in dict2.iteritems() %}
                             <li class="nav-item">
-                                <a class="nav-link" data-toggle="tab"
-                                   href="#{{ loop.index }}-tab-location">{{ location }}</a>
+                                <a class="nav-link" data-toggle="tab" href="#{{ loop.index }}-{{ name }}-tab-location">
+                                    {{ location }}
+                                </a>
                             </li>
                         {% endfor %}
                     </ul>
@@ -54,7 +55,7 @@
             {% for zone, dict1 in schedules.iteritems() %}
                 {% for name, dict2 in dict1.iteritems() %}
                     {% for location, schedule in dict2.iteritems() %}
-                        <div class="tab-pane" id="{{ loop.index }}-tab-location" role="tabpanel">
+                        <div class="tab-pane" id="{{ loop.index }}-{{ name }}-tab-location" role="tabpanel">
                             <div class="row">
                                 {% for day in ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] %}
                                     <div class="col-sm-1" style="width:14%">

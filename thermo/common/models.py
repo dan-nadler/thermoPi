@@ -151,6 +151,7 @@ class ThermostatSchedule(Base):
     zone = Column(Integer, ForeignKey('zone.id'), nullable=False)
     schedule = Column(BLOB, nullable=False)
     name = Column(String(250))
+    active = Column(Boolean, default=0, nullable=False)
 
     def __repr__(self):
         return "{0} for zone {1} for user {2}".format(self.name, self.zone, self.user)

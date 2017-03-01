@@ -30,12 +30,14 @@ def index():
     minutes = 1
 
     room_temps = get_current_room_temperatures(local_settings.USER_NUMBER, zone, minutes)
-    room_targets, next_targets = get_thermostat_schedule(zone)
+    room_targets, next_targets, schedule_name = get_thermostat_schedule(zone)
 
     next_target_dates = {room: hour for room, (hour, target) in next_targets.iteritems()}
     next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
 
     status = get_action_status(local_settings.USER_NUMBER, zone)
+
+    schedules = get_available_schedules(local_settings.USER_NUMBER, zone)
 
     context = {
         'current_temp': aggregate_temperatures(room_temps),
@@ -43,10 +45,22 @@ def index():
         'next_target': aggregate_temperatures(next_target_temps),
         'next_target_start_time': aggregate_temperatures(next_target_dates, method='DateMin').strftime('%I:%M %p'),
         'status': status,
+        'active_schedule_name': schedule_name,
+        'schedules': schedules,
         'controltoken': request.args.get('controltoken', '')
     }
 
     return render_template('index.html', **context)
+
+
+@app.route('/schedule/set_active', methods=['POST'])
+def set_active_schedule():
+    check_local(request, token=request.form.get('controltoken', False))
+
+    schedule_id = request.form.get('schedule')
+    activate_schedule(local_settings.USER_NUMBER, zone, schedule_id)
+
+    return redirect(url_for('index') + '?' + urllib.urlencode(request.form))
 
 
 @app.route('/override', methods=['POST'])
