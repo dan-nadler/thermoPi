@@ -1,17 +1,20 @@
+import json
 import time
 from datetime import datetime, timedelta
+
 import RPi.GPIO as GPIO
 import numpy as np
+import pandas as pd
 from sqlalchemy import func
+from sqlalchemy.exc import OperationalError
+
 from thermo import local_settings
 from thermo.common.models import *
 from thermo.sensor.thermal import read_temp_sensor
-import pandas as pd
-import json
 
 
 class HVAC():
-    def __init__(self, zone, log=True):
+    def __init__(self, zone, log=True, schedule=None):
 
         self.log = log
         self.zone = zone
@@ -46,7 +49,7 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
-            try:
+            def get_action_id():
                 session = get_session()
                 results = session.query(Action) \
                     .filter(Action.unit == self.unit) \
@@ -54,13 +57,21 @@ class HVAC():
                     .all()
                 session.close()
                 if len(results) == 1:
-                    self.heat_action_id = results[0].id
+                    heat_action_id = results[0].id
                 else:
-                    self.heat_action_id = None
+                    heat_action_id = None
                     print('Warning: Could not resolve action ID, logging is disabled!')
-            except:
-                self.heat_action_id = None
-                print('Warning: Could not resolve action ID, logging is disabled!')
+
+                return heat_action_id
+
+            try:
+                self.heat_action_id = get_action_id()
+            except OperationalError:
+                time.sleep(5) # possible network interruption, try again in 5 seconds
+                try:
+                    self.heat_action_id = get_action_id()
+                except Exception as e:
+                    raise(e)
 
         else:
             raise Exception('No configuration for heating found in thermo.common.local_settings.py')
@@ -72,7 +83,10 @@ class HVAC():
 
         self.retrieve_lags()
 
-        self.schedule = Schedule(self.zone)
+        if schedule is not None:
+            self.schedule = schedule
+        else:
+            self.schedule = Schedule(self.zone)
 
     def retrieve_lags(self):
         try:
@@ -174,7 +188,7 @@ class HVAC():
             except AssertionError:
                 print("Heating relay check failed, did you assign the correct GPIO heat_pin?")
 
-    def check_recent_temperature(self, minutes=5, verbose=False):
+    def check_recent_temperature(self, minutes=1, verbose=False):
         session = get_session()
         indoor_temperatures = session.query(
             Temperature.location,
@@ -266,10 +280,15 @@ class HVAC():
         return np.mean(temp_lag_off), np.mean(temp_lag_on)
 
 
-class Schedule():
+class Schedule(object):
     def __init__(self, zone):
+        """
+        The Schedule class handles the retrieval and interpretation of temperature scheduling
+
+        :param zone: zone number
+        """
         self.zone = zone
-        self.schedule = self.update_local_schedule()
+        self.schedule, self.schedule_name = self.get_schedule()
         self.override = None
         self.override_expiration = None
 
@@ -313,33 +332,26 @@ class Schedule():
 
         return
 
-    def update_local_schedule(self):
-        session = get_session()
-        results = session.query(ThermostatSchedule, Sensor) \
+    @fallback_locally
+    def get_schedule(self, local=False):
+        session = get_session(local=local)
+        results = session.query(ThermostatSchedule) \
             .filter(ThermostatSchedule.zone == self.zone) \
-            .filter(ThermostatSchedule.zone == Sensor.zone) \
             .filter(ThermostatSchedule.user == local_settings.USER_NUMBER) \
-            .filter(ThermostatSchedule.user == Sensor.user) \
+            .filter(ThermostatSchedule.active == 1) \
             .all()
+
+        if len(results) > 1:
+            print("Multiple schedules found, using {0}".format(results[0].name))
+
+        schedule = json.loads(results[0].schedule)
+        schedule_name = results[0].name
+
+        print('Schedule is now %s' % schedule_name)
+
         session.close()
 
-        schedule = {}
-        for r in results:
-            schedule[r[1].location] = {}
-
-        for r in results:
-            schedule[r[1].location][r[0].day] = []
-
-        for r in results:
-            if r[0].minute == 0:
-                minute = '00'
-            else:
-                minute = str(r[0].minute)
-
-            time = int(str(r[0].hour) + minute)
-            schedule[r[1].location][r[0].day].append((time, float(r[0].target)))
-
-        return schedule
+        return schedule, schedule_name
 
     def current_target_temps(self):
         if self.override is not None:
@@ -352,19 +364,67 @@ class Schedule():
         weekday = datetime.now().weekday()
         current_time = int(datetime.now().strftime('%H%M'))
         target = {}
-        for room, day in self.schedule.iteritems():
-            temp = day[weekday]
 
-            if current_time < temp[0][0]:
-                target[room] = temp[0][1]
+        # for each room-day schedule
+        for room, day in self.schedule.iteritems():
+
+            # get today's schedule
+            temp = day[str(weekday)]
+
+            # if current time is before the first scheduled target
+            if current_time < int(temp[0][0]):
+                # then, get the last target of the previous day's schedule
+                previous_weekday = (datetime.now() - timedelta(days=1)).weekday()
+                target[room] = day[str(previous_weekday)][-1][1]
             else:
                 for hour, tgt in temp:
-                    if current_time > hour:
+                    if current_time > int(hour):
                         target[room] = tgt
         return target
 
+    def get_next_target_temps(self):
+        """
+        Get the next scheduled target temperature for each room.
+        :return: dict<room:dict<datetime:target>>
+        """
+        weekday = datetime.now().weekday()
+        current_time = int(datetime.now().strftime('%H%M'))
+        target = {}
+
+        tgt_date = lambda x: datetime.now().replace(hour=int(x[:2]), minute=int(x[2:]), second=0, microsecond=0)
+
+        # for each room-day schedule
+        for room, day in self.schedule.iteritems():
+
+            # get today's schedule
+            temp = day[str(weekday)]
+
+            # if current time is before the first scheduled time
+            if current_time < int(temp[0][0]):
+                # then, get the first target of the current day
+                next_date = tgt_date(temp[0][0])
+                target[room] = ( next_date, temp[0][1] )
+            else:
+                for i in range(len(temp)):
+                    hour, tgt = temp[i]
+                    # if the current time is after the scheduled time
+                    if current_time > int(hour):
+                        # try getting the next target
+                        try:
+                            next_date = tgt_date(temp[i+1][0])
+                            target[room] = ( next_date, temp[i+1][1] )
+
+                        # otherwise, get first target of next day
+                        except IndexError:
+                            next_weekday = (datetime.now() + timedelta(days=1)).weekday()
+                            h = day[str(next_weekday)][0][0]
+                            next_date = tgt_date(h) + timedelta(days=1)
+                            target[room] = ( next_date, day[str(next_weekday)][0][1] )
+
+        return target
 
 def main(hvac, verbosity=0):
+    hvac.schedule.schedule, hvac.schedule.schedule_name = hvac.schedule.get_schedule()
     hvac.schedule.get_override_messages()
     current_targets = hvac.schedule.current_target_temps()
 
