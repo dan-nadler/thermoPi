@@ -1,4 +1,4 @@
-pandas>=0.14
+pandas==0.14
 numpy
 sqlalchemy
 RPi.GPIO==0.6.3
