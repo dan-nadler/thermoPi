@@ -31,12 +31,9 @@ def index():
 
     room_temps = get_current_room_temperatures(local_settings.USER_NUMBER, zone, minutes)
     room_targets, next_targets, schedule_name = get_thermostat_schedule(zone)
-
     next_target_dates = {room: hour for room, (hour, target) in next_targets.iteritems()}
     next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
-
     status = get_action_status(local_settings.USER_NUMBER, zone)
-
     schedules = get_available_schedules(local_settings.USER_NUMBER, zone)
 
     context = {
@@ -82,4 +79,4 @@ def schedule():
 
 if __name__ == '__main__':
 
-    app.run(debug=True, port=8080, host='0.0.0.0')
+    app.run()

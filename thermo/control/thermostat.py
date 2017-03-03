@@ -347,8 +347,6 @@ class Schedule(object):
         schedule = json.loads(results[0].schedule)
         schedule_name = results[0].name
 
-        print('Schedule is now %s' % schedule_name)
-
         session.close()
 
         return schedule, schedule_name
