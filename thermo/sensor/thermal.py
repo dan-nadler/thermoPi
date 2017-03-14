@@ -135,14 +135,14 @@ def main(user_id, unit, devices, local=False, **kwargs):
             print(location, temperature)
         except Exception as e:
             print('Sensor read failed for {0}: {1}'.format(location, device_id))
-            return # there is no data to record.
+            continue # there is no data to record.
 
         try:
             valid = validate_temperature(temperature, d, datetime.now(), local=local, verbosity=verbosity)
             if valid == False:
                 if verbosity >= 1:
                     print('Sensor reading is invalid.')
-                return #sensor data is invalid
+                continue #sensor data is invalid
         except Exception as e:
             raise(e)
 
