@@ -14,7 +14,8 @@ def main(available_actions, available_sensors, structs, **kwargs):
     thermal.main(
         local_settings.USER_NUMBER,
         local_settings.UNIT_NUMBER,
-        {a.location: a.serial_number for a in available_sensors}
+        available_sensors,
+        verbosity=kwargs.get('verbosity', 0)
     )
 
     for a in available_actions:

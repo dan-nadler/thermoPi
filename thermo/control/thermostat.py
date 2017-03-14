@@ -195,15 +195,25 @@ class HVAC():
             func.sum(Temperature.value) / func.count(Temperature.value)
         ) \
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
+            .filter(Temperature.value != 185) \
+            .filter(Temperature.value != 32) \
             .join(Sensor) \
             .filter(Sensor.user == self.user) \
             .filter(Sensor.zone == self.zone) \
             .group_by(Temperature.location) \
             .all()
         session.close()
-        if verbose:
-            for i in indoor_temperatures:
+
+        for i in indoor_temperatures:
+
+            if verbose:
                 print "%s, %.1f" % (i[0], i[1])
+
+            if i[1] < 50:
+                i[1] = 50
+
+            if i[1] > 80:
+                i[1] = 80
 
         return {i[0]: i[1] for i in indoor_temperatures}
 
@@ -427,7 +437,7 @@ def main(hvac, verbosity=0):
     current_targets = hvac.schedule.current_target_temps()
 
     try:
-        room_temps = hvac.check_recent_temperature(minutes=1)
+        room_temps = hvac.check_recent_temperature(minutes=2)
     except Exception as e:
         print('Exception, falling back to local sensor.')
         room_temps = {}
@@ -454,7 +464,7 @@ def main(hvac, verbosity=0):
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
 
-    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
+    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=0.75)
 
 
 if __name__ == '__main__':
