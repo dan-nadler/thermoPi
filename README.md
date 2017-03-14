@@ -61,4 +61,4 @@ Use `python -m thermo.control.master` on each raspberry pi to run thermo.
 This will detect the attached sensors and available actions via the database and `local_settings.py` file, and perform them in a loop.
 
 # Web Interface
-uwsgi --socket :80 --protocol =http -w wsgi:app
+/usr/local/bin/uwsgi --socket :80 --protocol =http -w wsgi:app

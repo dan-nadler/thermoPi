@@ -3,3 +3,5 @@ numpy
 sqlalchemy
 RPi.GPIO==0.6.3
 uwsgi
+pymysql
+flask

@@ -69,6 +69,9 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
     data = np.unique([r.value for r in results[-limit:]])
     session.close()
 
+    if len(data) < 5:
+        return True
+
     s = np.std(data)
     m = np.mean(data)
     z = np.abs(value-m) / s
