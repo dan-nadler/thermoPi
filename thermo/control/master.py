@@ -11,12 +11,17 @@ def main(available_actions, available_sensors, structs, **kwargs):
 
     # Assume all sensors are thermal for now
     # Check thermal sensors:
-    thermal.main(
-        local_settings.USER_NUMBER,
-        local_settings.UNIT_NUMBER,
-        available_sensors,
-        verbosity=kwargs.get('verbosity', 0)
-    )
+    try:
+        thermal.main(
+            local_settings.USER_NUMBER,
+            local_settings.UNIT_NUMBER,
+            available_sensors,
+            verbosity=kwargs.get('verbosity', 0),
+            validate=kwargs.get('validate', True)
+        )
+    except:
+        print('thermal.main error.')
+        pass
 
     for a in available_actions:
         if a.name == 'HEAT':
@@ -76,12 +81,14 @@ if __name__ == '__main__':
     parser.add_argument('--dry-run', default=False, action='store_true')
     parser.add_argument('--sleep', default=10, type=int)
     parser.add_argument('--boot-sleep', default=0, type=int)
+    parser.add_argument('--validate', default=1, type=int)
 
     args = parser.parse_args()
 
     time.sleep(args.boot_sleep)
 
     verbosity = args.verbosity
+    validate = bool(args.validate)
     log = args.disable_log
     dry_run = args.dry_run
     sleep = args.sleep
@@ -112,5 +119,5 @@ if __name__ == '__main__':
             except:
                 pass
 
-        main(available_actions, available_sensors, structs, log=log, verbosity=verbosity)
+        main(available_actions, available_sensors, structs, log=log, verbosity=verbosity, validate=validate)
         time.sleep(sleep)
