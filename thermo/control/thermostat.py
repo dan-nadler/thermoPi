@@ -190,13 +190,14 @@ class HVAC():
 
     def check_recent_temperature(self, minutes=1, verbose=False):
         session = get_session()
+
+        # Get the average temperature over the past <minutes> minutes, grouped by Temperature.location
         indoor_temperatures = session.query(
             Temperature.location,
             func.sum(Temperature.value) / func.count(Temperature.value)
         ) \
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
             .filter(Temperature.value != 185) \
-            .filter(Temperature.value != 32) \
             .join(Sensor) \
             .filter(Sensor.user == self.user) \
             .filter(Sensor.zone == self.zone) \

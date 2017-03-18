@@ -88,7 +88,7 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
     return True
 
 
-def record_to_database(record_time, temp, location):
+def record_to_database(record_time, temp, location, sensor_id):
     """
     Insert a record into the temperature table.
     :param record_time: datetime
@@ -101,9 +101,9 @@ def record_to_database(record_time, temp, location):
 
     try:
         session = Session()
-        sensors = session.query(Sensor).filter_by(location=location)
-        if sensors.count() == 1:
-            sensor_id = sensors.all()[0].id
+        # sensors = session.query(Sensor).filter(Sensor.id==sensor_id)
+        # if sensors.count() == 1:
+        #     sensor_id = sensors.all()[0].id
 
         new_observation = Temperature(value=temp, record_time=record_time, location=location, sensor=sensor_id)
         session.add(new_observation)
@@ -151,7 +151,7 @@ def main(user_id, unit, devices, local=False, **kwargs):
         #         print('Validation error.')
 
         try:
-            record_to_database(datetime.now(), temperature, location)
+            record_to_database(datetime.now(), temperature, location, d.id)
         except Exception as e:
             print('Error during database insert: ', e)
             print('Writing to CSV.')
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('user_id', type=int)
-    parser.add_argument('--unit', type=int, default=1)
+    parser.add_argument('--unit', type=int, default=2)
     args = parser.parse_args()
 
     user_id = args.user_id
