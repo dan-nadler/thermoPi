@@ -194,14 +194,13 @@ class HVAC():
         # Get the average temperature over the past <minutes> minutes, grouped by Temperature.location
         indoor_temperatures = session.query(
             Temperature.location,
-            func.sum(Temperature.value + Sensor.bias) / func.count(Temperature.value)
+            func.sum(Temperature.value - Sensor.bias) / func.count(Temperature.value)
         ) \
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
             .filter(Temperature.value != 185) \
             .join(Sensor) \
             .filter(Sensor.user == self.user) \
             .filter(Sensor.zone == self.zone) \
-            .filter(Sensor.id == Temperature.sensor) \
             .group_by(Temperature.location) \
             .all()
         session.close()

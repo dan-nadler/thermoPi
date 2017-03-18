@@ -250,7 +250,7 @@ def get_current_room_temperatures(user, zone, minutes=1):
         session = get_session()
         indoor_temperatures = session.query(
             Temperature.location,
-            func.sum(Temperature.value) / func.count(Temperature.value)
+            func.sum(Temperature.value - Sensor.bias) / func.count(Temperature.value)
         ) \
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
             .join(Sensor) \
