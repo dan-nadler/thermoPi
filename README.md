@@ -66,3 +66,8 @@ If you install uwsgi via apt-get and pip, you can use the following command to h
 `sudo /usr/local/bin/uwsgi --socket :80 --protocol=http -w wsgi:app`
 
 Alternatively, you can host with Flask, or another webserver of your choosing.
+
+# Creating a Service
+Copy thermo.service to `/lib/systemd/system/`, then run `sudo systemctl enable thermo` and `sudo systemctl start thermo`
+
+This service is configured to automatically restart if the process crashes.
