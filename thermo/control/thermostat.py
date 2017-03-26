@@ -320,7 +320,10 @@ class Schedule(object):
             for msg in results:
                 msg_dict = json.loads(msg.json)
                 target = msg_dict['target']
-                expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                try:
+                    expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                except ValueError:
+                    expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S")
                 zone = int(msg_dict['zone'])
 
                 for location, tgt in target.iteritems():
@@ -465,7 +468,7 @@ def main(hvac, verbosity=0):
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
 
-    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=0.75)
+    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=0.5)
 
 
 if __name__ == '__main__':
