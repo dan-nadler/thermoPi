@@ -1,0 +1,12 @@
+[Unit]
+Description=The thermoPi master control service
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/bin/python /home/pi/thermoPi/thermo/control/master.py
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
+Alias=thermo.service

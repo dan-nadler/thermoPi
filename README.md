@@ -31,8 +31,8 @@ DATABASE = convert(DATABASE)
 # This database is created automatically by thermo.common.models
 LOCAL_DATABASE_PATH = '/home/pi/thermo.db'
 
-USER_NUMBER = 1 # Your user ID number
-UNIT_NUMBER = 2 # A unique ID number you assign to each Raspberry Pi
+USER_NUMBER = 1 # Your user ID number from the `user` table
+UNIT_NUMBER = 2 # A unique ID number assigned to each Raspberry Pi in the `unit` table
 
 GPIO_MODE = BCM # The mode for designating GPIO pins
 GPIO_PINS = {
@@ -59,3 +59,15 @@ Currently, the only available action is `'HEAT'`, which controls a heating syste
 Use `python -m thermo.control.master` on each raspberry pi to run thermo.
 
 This will detect the attached sensors and available actions via the database and `local_settings.py` file, and perform them in a loop.
+
+# Web Interface
+If you install uwsgi via apt-get and pip, you can use the following command to host the control UI from the Raspberry Pi:
+
+`sudo /usr/local/bin/uwsgi --socket :80 --protocol=http -w wsgi:app`
+
+Alternatively, you can host with Flask, or another webserver of your choosing.
+
+# Creating a Service
+Copy thermo.service to `/lib/systemd/system/`, then run `sudo systemctl enable thermo` and `sudo systemctl start thermo`
+
+This service is configured to automatically restart if the process crashes.

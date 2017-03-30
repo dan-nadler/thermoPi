@@ -64,6 +64,7 @@ def get_available_schedules(user, zone, local=False):
 
     return names
 
+
 @fallback_locally
 def get_schedules(user, local=False):
     """
@@ -103,7 +104,7 @@ def get_schedules(user, local=False):
             for day, t in sched.iteritems():
                 try:
                     final_response[zone.name][schedule.name][location][days[day]] = \
-                    response[zone.name][schedule.name][location][day]
+                        response[zone.name][schedule.name][location][day]
                     del final_response[zone.name][schedule.name][location][day]
 
                     new = []
@@ -120,13 +121,13 @@ def get_schedules(user, local=False):
                             h = '12'
 
                         if int(h) > 12:
-                            h = int(h)-12
+                            h = int(h) - 12
                             if h < 10:
-                                h = '0'+str(h)
+                                h = '0' + str(h)
                             else:
                                 h = str(h)
 
-                        new.append((h+':'+m+' '+ap, temp))
+                        new.append((h + ':' + m + ' ' + ap, temp))
 
                     final_response[zone.name][schedule.name][location][days[day]] = new
 
@@ -167,15 +168,17 @@ def set_schedule(user, zone, name, schedule, local=False):
 @duplicate_locally
 def activate_schedule(user, zone, id, local=False):
     session = get_session(local)
-    results1 = session\
-        .query(ThermostatSchedule)\
+    results1 = session \
+        .query(ThermostatSchedule) \
         .filter(ThermostatSchedule.id == id) \
         .filter(ThermostatSchedule.user == user) \
         .filter(ThermostatSchedule.zone == zone) \
         .all()
 
     if len(results1) > 1:
-        raise(Exception('Found multiple schedules for this id/user/zone combination. id={0}, user={1}, zone={2}'.format(id,user,zone)))
+        raise (Exception(
+            'Found multiple schedules for this id/user/zone combination. id={0}, user={1}, zone={2}'.format(id, user,
+                                                                                                            zone)))
 
     results1[0].active = 1
 
@@ -191,6 +194,7 @@ def activate_schedule(user, zone, id, local=False):
     session.commit()
     session.close()
     return True
+
 
 @duplicate_locally
 def update_schedule(user, zone, name, schedule, local=False):
@@ -250,7 +254,7 @@ def get_current_room_temperatures(user, zone, minutes=1):
         session = get_session()
         indoor_temperatures = session.query(
             Temperature.location,
-            func.sum(Temperature.value) / func.count(Temperature.value)
+            func.sum(Temperature.value - Sensor.bias) / func.count(Temperature.value)
         ) \
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
             .join(Sensor) \
@@ -300,7 +304,10 @@ class ScheduleAPI(Schedule):
             for msg in results:
                 msg_dict = json.loads(msg.json)
                 target = msg_dict['target']
-                expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                try:
+                    expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                except ValueError:
+                    expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S")
                 zone = int(msg_dict['zone'])
 
                 for location, tgt in target.iteritems():
@@ -334,3 +341,4 @@ def check_local(request, token=None):
             return
         else:
             raise Exception('Failed to validate.')
+

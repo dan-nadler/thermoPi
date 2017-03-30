@@ -122,6 +122,7 @@ class Sensor(Base):
     unit = Column(Integer, ForeignKey('unit.id'), index=True)
     indoors = Column(Boolean, default=1, nullable=False)
     zone = Column(Integer, ForeignKey('zone.id'), index=True)
+    bias = Column(Float, nullable=False, default=0)
 
     def __repr__(self):
         return self.location

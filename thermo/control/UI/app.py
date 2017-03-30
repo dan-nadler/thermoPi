@@ -7,7 +7,6 @@ from thermo.control.UI.api import *
 
 
 def aggregate_temperatures(schedule_dict, method='Median'):
-
     value_list = [value for key, value in schedule_dict.iteritems()]
 
     if method == 'Median':
@@ -18,6 +17,7 @@ def aggregate_temperatures(schedule_dict, method='Median'):
         output = np.median(value_list)
 
     return output
+
 
 app = Flask(__name__, template_folder='templates')
 zone = 1
@@ -31,12 +31,9 @@ def index():
 
     room_temps = get_current_room_temperatures(local_settings.USER_NUMBER, zone, minutes)
     room_targets, next_targets, schedule_name = get_thermostat_schedule(zone)
-
     next_target_dates = {room: hour for room, (hour, target) in next_targets.iteritems()}
     next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
-
     status = get_action_status(local_settings.USER_NUMBER, zone)
-
     schedules = get_available_schedules(local_settings.USER_NUMBER, zone)
 
     context = {
@@ -65,13 +62,13 @@ def set_active_schedule():
 
 @app.route('/override', methods=['POST'])
 def override():
-    check_local(request, token=request.form.get('controltoken',False))
+    check_local(request, token=request.form.get('controltoken', False))
 
     temperature = request.form.get('target')
-    expiration = datetime.now() + timedelta(hours=int(request.form.get('hours')))
+    expiration = datetime.now() + timedelta(hours=float(request.form.get('hours')))
     set_constant_temperature(local_settings.USER_NUMBER, zone, temperature, expiration)
 
-    return redirect(url_for('index')+'?'+urllib.urlencode(request.form))
+    return redirect(url_for('index') + '?' + urllib.urlencode(request.form))
 
 
 @app.route('/schedule', methods=['GET'])
@@ -80,6 +77,26 @@ def schedule():
 
     return render_template('schedule.html', schedules=schedules)
 
-if __name__ == '__main__':
 
-    app.run(debug=True, port=8080, host='0.0.0.0')
+@app.route('/skip-to-next', methods=['GET'])
+def skip():
+    room_targets, next_targets, schedule_name = get_thermostat_schedule(zone)
+    next_target_dates = {room: hour for room, (hour, target) in next_targets.iteritems()}
+    next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
+
+    next_temp = aggregate_temperatures(next_target_temps)
+    expiration = aggregate_temperatures(next_target_dates, method='DateMin')
+
+    set_constant_temperature(local_settings.USER_NUMBER, zone, next_temp, expiration)
+
+    ct = request.args.get('controltoken', None)
+    if ct is not None:
+        query_string = urllib.urlencode({'controltoken': ct})
+    else:
+        query_string = ''
+
+    return redirect(url_for('index') + '?' + query_string)
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', debug=True)

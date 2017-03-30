@@ -14,7 +14,9 @@ from thermo.sensor.thermal import read_temp_sensor
 
 
 class HVAC():
-    def __init__(self, zone, log=True, schedule=None):
+
+    @fallback_locally
+    def __init__(self, zone, log=True, schedule=None, local=False):
 
         self.log = log
         self.zone = zone
@@ -25,7 +27,7 @@ class HVAC():
         self.unit = local_settings.UNIT_NUMBER
 
         try:
-            session = get_session()
+            session = get_session(local=local)
             local_sensors = session.query(Sensor).filter(Sensor.unit == self.unit).filter(
                 Sensor.user == self.user).all()
             session.close()
@@ -49,8 +51,9 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
-            def get_action_id():
-                session = get_session()
+            @fallback_locally
+            def get_action_id(local=False):
+                session = get_session(local=local)
                 results = session.query(Action) \
                     .filter(Action.unit == self.unit) \
                     .filter(Action.name == 'HEAT') \
@@ -88,18 +91,20 @@ class HVAC():
         else:
             self.schedule = Schedule(self.zone)
 
-    def retrieve_lags(self):
+    @fallback_locally
+    def retrieve_lags(self, local=False):
         try:
-            session = get_session()
+            session = get_session(local=local)
             action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
             self.heat_off_lag, self.heat_on_lag = action.expected_overshoot_above, action.expected_overshoot_below
             session.close()
         except:
             self.heat_off_lag, self.heat_on_lag = 0., 0.
 
-    def update_lags(self, num_recent_actions=2, overwrite=False):
+    @duplicate_locally
+    def update_lags(self, num_recent_actions=2, overwrite=False, local=False):
         above, below = self.check_recent_lag(num_recent_actions=num_recent_actions)
-        session = get_session()
+        session = get_session(local=local)
         action = session.query(Action).filter(Action.id == self.heat_action_id).all()[0]
         if overwrite:
             action.expected_overshoot_above = float(above)
@@ -139,12 +144,13 @@ class HVAC():
             if verbose:
                 print('Target: %.2f, Measured: %.2f' % (target, temp))
 
-    def log_action(self, action, value, target=None):
+    @duplicate_locally
+    def log_action(self, action, value, target=None, local=False):
         if self.log == False:
             return
 
         elif self.heat_action_id is not None:
-            session = get_session()
+            session = get_session(local=local)
             try:
                 new_action = ActionLog(action=action, value=value, record_time=datetime.now(), target=float(target))
                 session.add(new_action)
@@ -188,26 +194,39 @@ class HVAC():
             except AssertionError:
                 print("Heating relay check failed, did you assign the correct GPIO heat_pin?")
 
-    def check_recent_temperature(self, minutes=1, verbose=False):
-        session = get_session()
+    @fallback_locally
+    def check_recent_temperature(self, minutes=1, verbose=False, local=False):
+        session = get_session(local=local)
+
+        # Get the average temperature over the past <minutes> minutes, grouped by Temperature.location
         indoor_temperatures = session.query(
             Temperature.location,
-            func.sum(Temperature.value) / func.count(Temperature.value)
+            func.sum(Temperature.value - Sensor.bias) / func.count(Temperature.value)
         ) \
             .filter(Temperature.record_time > datetime.now() - timedelta(minutes=minutes)) \
+            .filter(Temperature.value != 185) \
             .join(Sensor) \
             .filter(Sensor.user == self.user) \
             .filter(Sensor.zone == self.zone) \
             .group_by(Temperature.location) \
             .all()
         session.close()
-        if verbose:
-            for i in indoor_temperatures:
+
+        for i in indoor_temperatures:
+
+            if verbose:
                 print "%s, %.1f" % (i[0], i[1])
+
+            if i[1] < 50:
+                i[1] = 50
+
+            if i[1] > 80:
+                i[1] = 80
 
         return {i[0]: i[1] for i in indoor_temperatures}
 
-    def check_recent_lag(self, minutes=3, num_recent_actions=10, verbose=False):
+    @fallback_locally
+    def check_recent_lag(self, minutes=3, num_recent_actions=10, verbose=False, local=False):
         """
         Check the <num_recent_actions> most recent actions, and calculate the drift in temperature
         from the action to the local min/max temperature
@@ -217,7 +236,7 @@ class HVAC():
         :return: temp lag off, temp lag on
         """
 
-        session = get_session()
+        session = get_session(local=local)
         a = session.query(ActionLog) \
             .filter(ActionLog.action == 1) \
             .order_by(ActionLog.record_time.desc()) \
@@ -227,7 +246,7 @@ class HVAC():
 
         actions = [(i.value, i.record_time, i.target) for i in a]
 
-        session = get_session()
+        session = get_session(local=local)
         t = session.query(Temperature) \
             .filter(Temperature.record_time >= actions[-1][1]) \
             .filter(Temperature.record_time <= actions[0][1] + timedelta(minutes=minutes)) \
@@ -292,13 +311,14 @@ class Schedule(object):
         self.override = None
         self.override_expiration = None
 
-    def get_override_messages(self):
+    @fallback_locally
+    def get_override_messages(self, local=False):
         """
         Read the messages table for any override messages
         :return:
         """
         try:
-            session = get_session()
+            session = get_session(local=local)
             results = session.query(Message)\
                 .filter(Message.user == local_settings.USER_NUMBER)\
                 .filter(Message.received == False)\
@@ -309,7 +329,10 @@ class Schedule(object):
             for msg in results:
                 msg_dict = json.loads(msg.json)
                 target = msg_dict['target']
-                expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                try:
+                    expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S.%f")
+                except ValueError:
+                    expiration = datetime.strptime(msg_dict['expiration'], "%Y-%m-%dT%H:%M:%S")
                 zone = int(msg_dict['zone'])
 
                 for location, tgt in target.iteritems():
@@ -346,8 +369,6 @@ class Schedule(object):
 
         schedule = json.loads(results[0].schedule)
         schedule_name = results[0].name
-
-        print('Schedule is now %s' % schedule_name)
 
         session.close()
 
@@ -429,7 +450,7 @@ def main(hvac, verbosity=0):
     current_targets = hvac.schedule.current_target_temps()
 
     try:
-        room_temps = hvac.check_recent_temperature(minutes=1)
+        room_temps = hvac.check_recent_temperature(minutes=2)
     except Exception as e:
         print('Exception, falling back to local sensor.')
         room_temps = {}
@@ -437,7 +458,7 @@ def main(hvac, verbosity=0):
             is_on, room_temps[location] = read_temp_sensor(serial_number)
             if not is_on:
                 print('EMERGENCY: Fallback sensor unavailable!')
-                # TODO fallback to predictive model
+                hvac.turn_heat_off()
                 return
 
     deltas = {}
@@ -456,7 +477,7 @@ def main(hvac, verbosity=0):
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
 
-    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=.5)
+    hvac.temps_to_heat(zone_target, zone_temp, verbose=True if verbosity >= 1 else False, buffer=0.5)
 
 
 if __name__ == '__main__':
@@ -471,21 +492,25 @@ if __name__ == '__main__':
     log = args.disable_log
     dry_run = args.dry_run
 
-    session = get_session()
-    available_actions = session.query(User) \
-        .filter(User.id == local_settings.USER_NUMBER) \
-        .join(Action) \
-        .filter(Action.unit == local_settings.UNIT_NUMBER)
-    session.close()
+    @fallback_locally
+    def get_actions(local=False):
+        session = get_session(local=local)
+        available_actions = session.query(Action) \
+            .filter(Action.unit == local_settings.UNIT_NUMBER)
+        session.close()
 
-    action_pins = {}
-    for a in available_actions:
+        action_pins = {}
+        for a in available_actions:
 
-        if a.name == 'HEAT':
-            hvac = HVAC(a.zone, log=log)
+            if a.name == 'HEAT':
+                hvac = HVAC(a.zone, log=log)
 
-    if dry_run:
-        hvac.heat_pin = 0;
+        if dry_run:
+            hvac.heat_pin = 0;
+
+        return hvac
+
+    hvac = get_actions()
 
     try:
         while True:
