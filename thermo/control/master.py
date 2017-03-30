@@ -29,36 +29,22 @@ def main(available_actions, available_sensors, structs, **kwargs):
             thermostat.main(structs['HVAC'], verbosity=kwargs.get('verbosity', 0))
 
 
-def setup(**kwargs):
+@fallback_locally
+def setup(local=False, **kwargs):
     # Get all available actions and sensors for this unit
-    available_actions = None
 
-    try:
-        session = get_session()
-        unit = session.query(Unit).filter(Unit.user == local_settings.USER_NUMBER).filter(
-            Unit.id == local_settings.UNIT_NUMBER).all()
+    session = get_session(local=local)
+    unit = session.query(Unit).filter(Unit.user == local_settings.USER_NUMBER).filter(
+        Unit.id == local_settings.UNIT_NUMBER).all()
 
-        if len(unit) > 1:
-            raise Exception("Non-unique unit and user combination")
+    if len(unit) > 1:
+        raise Exception("Non-unique unit and user combination")
 
-        unit = unit[0]
+    unit = unit[0]
 
-        available_sensors = unit.sensors
-        available_actions = unit.actions
-        session.close()
-    except:
-        available_sensors = [
-            Sensor(
-                unit=local_settings.UNIT_NUMBER,
-                user=local_settings.USER_NUMBER,
-                serial_number=local_settings.FALLBACK['SERIAL NUMBER'],
-                location=local_settings.FALLBACK['LOCATION'],
-                indoors=True
-            )
-        ]
-
-        if 'HEAT' in local_settings.GPIO_PINS:
-            available_actions = [Action(name='HEAT', zone=local_settings.FALLBACK['ZONE'])]
+    available_sensors = unit.sensors
+    available_actions = unit.actions
+    session.close()
 
     structs = {}
     for a in available_actions:
@@ -96,11 +82,7 @@ if __name__ == '__main__':
     if verbosity >= 1:
         print('Updating available actions and sensors.')
 
-    try:
-        available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
-    except Exception as e:
-        print(e)
-        raise(e)
+    available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
 
     i = 0
     while True:

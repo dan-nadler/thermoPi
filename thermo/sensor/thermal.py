@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from sqlalchemy.orm import sessionmaker
 
-from thermo.common.models import Temperature, get_engine, Sensor, get_session
+from thermo.common.models import Temperature, get_engine, Sensor, get_session, duplicate_locally
 
 try:
     engine = get_engine()
@@ -36,7 +36,7 @@ def read_temp_sensor(device_id, units='F'):
     temp_raw = re.search('(\-|)[0-9]+', temp_raw_string).group()
 
     temp_celsius = float(temp_raw) / 1000.
-    temp_fahrenheit = (temp_celsius * 9./5.) + 32.
+    temp_fahrenheit = (temp_celsius * 9. / 5.) + 32.
 
     if units == 'F':
         out = temp_fahrenheit
@@ -58,12 +58,12 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
     """
 
     session = get_session(local=local)
-    results = session.query(Temperature)\
-        .filter(Temperature.record_time > record_time - timedelta(minutes=lookback))\
-        .filter(Temperature.record_time <= record_time)\
-        .join(Sensor).filter(Temperature.sensor == Sensor.id)\
-        .filter(Sensor.user == sensor.user)\
-        .filter(Sensor.zone == sensor.zone)\
+    results = session.query(Temperature) \
+        .filter(Temperature.record_time > record_time - timedelta(minutes=lookback)) \
+        .filter(Temperature.record_time <= record_time) \
+        .join(Sensor).filter(Temperature.sensor == Sensor.id) \
+        .filter(Sensor.user == sensor.user) \
+        .filter(Sensor.zone == sensor.zone) \
         .order_by(Temperature.record_time)
 
     data = np.unique([r.value for r in results[-limit:]])
@@ -74,10 +74,10 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
 
     s = np.std(data)
     m = np.mean(data)
-    z = np.abs(value-m) / s
+    z = np.abs(value - m) / s
 
     if verbosity >= 3:
-        print('Std: {0}, Mean: {1}'.format(s,m))
+        print('Std: {0}, Mean: {1}'.format(s, m))
 
     if verbosity >= 2:
         print('%.2f is %.2f standard deviations from mean of %.2f' % (value, z, m))
@@ -88,7 +88,8 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
     return True
 
 
-def record_to_database(record_time, temp, location, sensor_id):
+@duplicate_locally
+def record_to_database(record_time, temp, location, sensor_id, local=False):
     """
     Insert a record into the temperature table.
     :param record_time: datetime
@@ -96,24 +97,12 @@ def record_to_database(record_time, temp, location, sensor_id):
     :param location: string
     :return:
     """
-    if not database_connection:
-        raise Exception('Not connected to database')
+    session = get_session(local)
 
-    try:
-        session = Session()
-        # sensors = session.query(Sensor).filter(Sensor.id==sensor_id)
-        # if sensors.count() == 1:
-        #     sensor_id = sensors.all()[0].id
-
-        new_observation = Temperature(value=temp, record_time=record_time, location=location, sensor=sensor_id)
-        session.add(new_observation)
-        session.commit()
-    except:
-        print('Error inserting records')
-        session.rollback()
-        raise Exception('Error inserting records')
-    finally:
-        session.close()
+    new_observation = Temperature(value=temp, record_time=record_time, location=location, sensor=sensor_id)
+    session.add(new_observation)
+    session.commit()
+    session.close()
 
 
 def record_to_csv(record_time, temp, location, file):
@@ -138,17 +127,7 @@ def main(user_id, unit, devices, local=False, **kwargs):
             print(location, temperature)
         except Exception as e:
             print('Sensor read failed for {0}: {1}'.format(location, device_id))
-            continue # there is no data to record.
-
-        # if kwargs.get('validate', False):
-        #     try:
-        #         valid = validate_temperature(temperature, d, datetime.now(), local=local, verbosity=verbosity)
-        #         if valid == False:
-        #             if verbosity >= 1:
-        #                 print('Sensor reading is invalid.')
-        #             continue #sensor data is invalid
-        #     except Exception as e:
-        #         print('Validation error.')
+            continue  # there is no data to record.
 
         try:
             record_to_database(datetime.now(), temperature, location, d.id)
@@ -160,6 +139,7 @@ def main(user_id, unit, devices, local=False, **kwargs):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument('user_id', type=int)
     parser.add_argument('--unit', type=int, default=2)
@@ -168,14 +148,16 @@ if __name__ == '__main__':
     user_id = args.user_id
     unit = args.unit
 
+
     def check_sensors(user_id, unit):
         session = Session()
         devices = session.query(Sensor).filter(
-                Sensor.unit == unit,
-                Sensor.user == user_id
-            ).all()
+            Sensor.unit == unit,
+            Sensor.user == user_id
+        ).all()
         session.close()
         return [d for d in devices]
+
 
     i = 0
     sleep = 10
