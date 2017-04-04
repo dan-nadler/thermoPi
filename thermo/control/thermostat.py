@@ -14,7 +14,6 @@ from thermo.sensor.thermal import read_temp_sensor
 
 
 class HVAC():
-
     @fallback_locally
     def __init__(self, zone, log=True, schedule=None, local=False):
 
@@ -42,7 +41,7 @@ class HVAC():
 
         self.fallback_sensors = [(s.location, s.serial_number) for s in local_sensors if s.indoors == True]
         if len(self.fallback_sensors) == 0:
-            print('Warning: No local backup sensors available.')
+            logging.warning('No local backup sensors available.')
 
         if 'HEAT' in local_settings.GPIO_PINS:
             self.heat_pin = local_settings.GPIO_PINS['HEAT']
@@ -50,6 +49,8 @@ class HVAC():
             GPIO.setwarnings(False)
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
+
+            # atexit.register(self.turn_heat_off())
 
             @fallback_locally
             def get_action_id(local=False):
@@ -63,25 +64,27 @@ class HVAC():
                     heat_action_id = results[0].id
                 else:
                     heat_action_id = None
-                    print('Warning: Could not resolve action ID, logging is disabled!')
+                    logging.warning('Could not resolve action ID, action logging is disabled!')
 
                 return heat_action_id
 
             try:
                 self.heat_action_id = get_action_id()
             except OperationalError:
-                time.sleep(5) # possible network interruption, try again in 5 seconds
+                time.sleep(5)  # possible network interruption, try again in 5 seconds
                 try:
                     self.heat_action_id = get_action_id()
                 except Exception as e:
-                    raise(e)
+                    raise (e)
 
         else:
+            logging.error('No configuration for heating found in thermo.common.local_settings.py')
             raise Exception('No configuration for heating found in thermo.common.local_settings.py')
 
         try:
             self.heat_relay_is_on()
         except Exception as e:
+            logging.exception(e)
             raise e
 
         self.retrieve_lags()
@@ -90,6 +93,10 @@ class HVAC():
             self.schedule = schedule
         else:
             self.schedule = Schedule(self.zone)
+
+    def __del__(self):
+        logging.info('Destructing HVAC class')
+        self.turn_heat_off()
 
     @fallback_locally
     def retrieve_lags(self, local=False):
@@ -130,19 +137,15 @@ class HVAC():
             target -= self.heat_on_lag  # turn on the heat a little early (target higher, heat_on_lag is negative) to bottom out at the right temp
 
         if temp < target and not self.heat_relay_is_on():
-
-            if verbose:
-                print("%s vs target %s. Turning heat on." % (temp, target))
+            logging.info("%s vs target %s. Turning heat on." % (temp, target))
             self.turn_heat_on(target=target)
 
         elif temp >= target and self.heat_relay_is_on():
-            if verbose:
-                print("%s vs target %s. Turning heat off." % (temp, target))
+            logging.info("%s vs target %s. Turning heat off." % (temp, target))
             self.turn_heat_off(target=target)
 
         else:
-            if verbose:
-                print('Target: %.2f, Measured: %.2f' % (target, temp))
+            logging.info('Target: %.2f, Measured: %.2f' % (target, temp))
 
     @duplicate_locally
     def log_action(self, action, value, target=None, local=False):
@@ -161,10 +164,12 @@ class HVAC():
                 session.close()
 
     def turn_heat_on(self, **kwargs):
+        logging.info('Turning heat on.')
         GPIO.output(self.heat_pin, GPIO.HIGH)
         self.log_action(self.heat_action_id, 1, target=kwargs.get('target', None))
 
     def turn_heat_off(self, **kwargs):
+        logging.info('Turning heat off.')
         GPIO.output(self.heat_pin, GPIO.LOW)
         self.log_action(self.heat_action_id, 0, target=kwargs.get('target', None))
 
@@ -192,7 +197,7 @@ class HVAC():
                     assert (self.heat_relay_is_on() == False)
 
             except AssertionError:
-                print("Heating relay check failed, did you assign the correct GPIO heat_pin?")
+                logging.error("Heating relay check failed, did you assign the correct GPIO heat_pin?")
 
     @fallback_locally
     def check_recent_temperature(self, minutes=1, verbose=False, local=False):
@@ -212,10 +217,10 @@ class HVAC():
             .all()
         session.close()
 
+        logging.info('Reading temperatures from database.')
         for i in indoor_temperatures:
 
-            if verbose:
-                print "%s, %.1f" % (i[0], i[1])
+            logging.info("%s, %.1f" % (i[0], i[1]))
 
             if i[1] < 50:
                 i[1] = 50
@@ -319,11 +324,11 @@ class Schedule(object):
         """
         try:
             session = get_session(local=local)
-            results = session.query(Message)\
-                .filter(Message.user == local_settings.USER_NUMBER)\
-                .filter(Message.received == False)\
-                .filter(Message.type == 'temperature override')\
-                .order_by(Message.record_time.asc())\
+            results = session.query(Message) \
+                .filter(Message.user == local_settings.USER_NUMBER) \
+                .filter(Message.received == False) \
+                .filter(Message.type == 'temperature override') \
+                .order_by(Message.record_time.asc()) \
                 .all()
 
             for msg in results:
@@ -365,7 +370,7 @@ class Schedule(object):
             .all()
 
         if len(results) > 1:
-            print("Multiple schedules found, using {0}".format(results[0].name))
+            logging.warning("Multiple schedules found, using {0}".format(results[0].name))
 
         schedule = json.loads(results[0].schedule)
         schedule_name = results[0].name
@@ -424,7 +429,7 @@ class Schedule(object):
             if current_time < int(temp[0][0]):
                 # then, get the first target of the current day
                 next_date = tgt_date(temp[0][0])
-                target[room] = ( next_date, temp[0][1] )
+                target[room] = (next_date, temp[0][1])
             else:
                 for i in range(len(temp)):
                     hour, tgt = temp[i]
@@ -432,17 +437,18 @@ class Schedule(object):
                     if current_time > int(hour):
                         # try getting the next target
                         try:
-                            next_date = tgt_date(temp[i+1][0])
-                            target[room] = ( next_date, temp[i+1][1] )
+                            next_date = tgt_date(temp[i + 1][0])
+                            target[room] = (next_date, temp[i + 1][1])
 
                         # otherwise, get first target of next day
                         except IndexError:
                             next_weekday = (datetime.now() + timedelta(days=1)).weekday()
                             h = day[str(next_weekday)][0][0]
                             next_date = tgt_date(h) + timedelta(days=1)
-                            target[room] = ( next_date, day[str(next_weekday)][0][1] )
+                            target[room] = (next_date, day[str(next_weekday)][0][1])
 
         return target
+
 
 def main(hvac, verbosity=0):
     hvac.schedule.schedule, hvac.schedule.schedule_name = hvac.schedule.get_schedule()
@@ -452,14 +458,21 @@ def main(hvac, verbosity=0):
     try:
         room_temps = hvac.check_recent_temperature(minutes=2)
     except Exception as e:
-        print('Exception, falling back to local sensor.')
+        logging.exception(e)
+        logging.error('Exception, falling back to local sensor.')
         room_temps = {}
         for location, serial_number in hvac.fallback_sensors:
-            is_on, room_temps[location] = read_temp_sensor(serial_number)
-            if not is_on:
-                print('EMERGENCY: Fallback sensor unavailable!')
+            try:
+                is_on, room_temps[location] = read_temp_sensor(serial_number)
+                if not is_on:
+                    raise Exception('Fallback sensor is_on reported False.')
+
+            except Exception as e:
+                logging.exception(e)
+                logging.error('EMERGENCY: Fallback sensor unavailable!')
+                # TODO attempt to send email to user
                 hvac.turn_heat_off()
-                return
+                return  # TODO go to predictive model (eg X min on / Y min off cycle based on date/time)
 
     deltas = {}
     for room, target in current_targets.iteritems():
@@ -470,9 +483,7 @@ def main(hvac, verbosity=0):
 
         deltas[room] = room_temps[room] - target
 
-        if verbosity >= 2:
-            print("%s, %s: %.2f, %.2f, %.2f" % (
-            datetime.now().strftime('%m/%d/%Y %H:%M:%S'), room, target, room_temps[room], deltas[room]))
+        logging.info("%s: Tgt: %.2f, Obs: %.2f, Diff: %.2f" % (room, target, room_temps[room], deltas[room]))
 
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
@@ -492,6 +503,7 @@ if __name__ == '__main__':
     log = args.disable_log
     dry_run = args.dry_run
 
+
     @fallback_locally
     def get_actions(local=False):
         session = get_session(local=local)
@@ -510,6 +522,7 @@ if __name__ == '__main__':
 
         return hvac
 
+
     hvac = get_actions()
 
     try:
@@ -518,7 +531,7 @@ if __name__ == '__main__':
             time.sleep(10)
 
     except KeyboardInterrupt:
-        print("Turning heat off.")
+        logging.info("Turning heat off.")
         if hvac.heat_relay_is_on():
             hvac.turn_heat_off()
         GPIO.cleanup()

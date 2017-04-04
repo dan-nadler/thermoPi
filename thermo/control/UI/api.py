@@ -267,13 +267,20 @@ def get_current_room_temperatures(user, zone, minutes=1):
         room_temps = {i[0]: i[1] for i in indoor_temperatures}
 
     except Exception as e:
-        print('Exception, falling back to local sensor.')
+        logging.exception('Exception, falling back to local sensor.')
         room_temps = {}
-        is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(
-            local_settings.FALLBACK['SERIAL NUMBER'])
-        if not is_on:
-            print('EMERGENCY: Fallback sensor unavailable!')
-            # TODO fallback to predictive model
+        try:
+            is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(
+                local_settings.FALLBACK['SERIAL NUMBER'])
+            if not is_on:
+                raise Exception
+
+        except Exception as e2:
+            logging.error('EMERGENCY: Fallback sensor unavailable!')
+            logging.error('Parent Exception:')
+            logging.exception(e)
+            logging.error('Nested Exception:')
+            logging.exception(e2)
 
     return room_temps
 
@@ -341,4 +348,3 @@ def check_local(request, token=None):
             return
         else:
             raise Exception('Failed to validate.')
-

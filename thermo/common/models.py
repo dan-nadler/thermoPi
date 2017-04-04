@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean, BLOB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -61,12 +63,14 @@ def duplicate_locally(function):
         try :
             function(*args, local=False, **kwargs)
         except Exception as e:
-            print('Failed using remote database.')
+            logging.error('Failed using remote database.')
+            logging.exception(e)
 
         try:
             function(*args, local=True, **kwargs)
         except Exception as e:
-            print('Failed using local database.')
+            logging.info('Failed using local database.')
+            logging.exception(e)
             raise(e)
 
         return
@@ -83,12 +87,14 @@ def fallback_locally(function):
         try :
             results = function(*args, local=False, **kwargs)
         except Exception as e:
-            print('Failed using remote database.')
+            logging.error('Failed using remote database.')
+            logging.exception(e)
 
             try:
                 results = function(*args, local=True, **kwargs)
             except Exception as e:
-                print('Failed using local database.')
+                logging.error('Failed using local database.')
+                logging.exception(e)
                 raise(e)
 
         return results
@@ -230,4 +236,4 @@ if __name__ == '__main__':
     Base.metadata.create_all(engine)
 
     copy_data_to_local(USER_NUMBER)
-    print('Done')
+    logging.info('Done')

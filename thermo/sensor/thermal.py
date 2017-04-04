@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 from datetime import datetime, timedelta
@@ -76,11 +77,9 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
     m = np.mean(data)
     z = np.abs(value - m) / s
 
-    if verbosity >= 3:
-        print('Std: {0}, Mean: {1}'.format(s, m))
+    logging.info('Std: {0}, Mean: {1}'.format(s, m))
 
-    if verbosity >= 2:
-        print('%.2f is %.2f standard deviations from mean of %.2f' % (value, z, m))
+    logging.info('%.2f is %.2f standard deviations from mean of %.2f' % (value, z, m))
 
     if z >= deviation:
         return False
@@ -118,22 +117,22 @@ def record_to_csv(record_time, temp, location, file):
 def main(user_id, unit, devices, local=False, **kwargs):
     verbosity = kwargs.get('verbosity', 0)
     for d in devices:
-        print(d)
         device_id = d.serial_number
         location = d.location
 
         try:
             _, temperature = read_temp_sensor(device_id)
-            print(location, temperature)
+            logging.info('Read thermal sensor: {0}: {1}'.format(location, temperature))
         except Exception as e:
-            print('Sensor read failed for {0}: {1}'.format(location, device_id))
+            logging.warning('Sensor read failed for {0}: {1}'.format(location, device_id))
             continue  # there is no data to record.
 
         try:
             record_to_database(datetime.now(), temperature, location, d.id)
         except Exception as e:
-            print('Error during database insert: ', e)
-            print('Writing to CSV.')
+            logging.error('Error during database insert.')
+            logging.exception(e)
+            logging.info('Writing to CSV.')
             record_to_csv(datetime.now(), temperature, location, '/home/pi/temperature_log.csv')
 
 
