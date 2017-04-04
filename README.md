@@ -45,6 +45,13 @@ FALLBACK = {
     'SERIAL NUMBER': '28-0416930a31ff', # the sensor's serial number
     'ZONE': 1 # the heating zone the sensor is assigned to
 }
+
+# This dictionary is passed to logging.basicConfig via logging.basicConfig(**LOGGING)
+LOGGING = {
+    'level': logging.DEBUG,
+    'filename': '/home/pi/thermoPiLog.log',
+    'format': '%(asctime)s %(levelname)s: %(filename)s %(lineno)d: %(message)s'
+}
 ```
 
 ## Database
