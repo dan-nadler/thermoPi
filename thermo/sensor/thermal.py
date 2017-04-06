@@ -77,9 +77,9 @@ def validate_temperature(value, sensor, record_time, deviation=3, lookback=5, li
     m = np.mean(data)
     z = np.abs(value - m) / s
 
-    logging.info('Std: {0}, Mean: {1}'.format(s, m))
+    logging.debug('Std: {0}, Mean: {1}'.format(s, m))
 
-    logging.info('%.2f is %.2f standard deviations from mean of %.2f' % (value, z, m))
+    logging.debug('%.2f is %.2f standard deviations from mean of %.2f' % (value, z, m))
 
     if z >= deviation:
         return False
@@ -122,7 +122,7 @@ def main(user_id, unit, devices, local=False, **kwargs):
 
         try:
             _, temperature = read_temp_sensor(device_id)
-            logging.info('Read thermal sensor: {0}: {1}'.format(location, temperature))
+            logging.debug('Read thermal sensor: {0}: {1}'.format(location, temperature))
         except Exception as e:
             logging.warning('Sensor read failed for {0}: {1}'.format(location, device_id))
             continue  # there is no data to record.
@@ -132,7 +132,7 @@ def main(user_id, unit, devices, local=False, **kwargs):
         except Exception as e:
             logging.error('Error during database insert.')
             logging.exception(e)
-            logging.info('Writing to CSV.')
+            logging.debug('Writing to CSV.')
             record_to_csv(datetime.now(), temperature, location, '/home/pi/temperature_log.csv')
 
 

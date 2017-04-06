@@ -55,9 +55,7 @@ def setup(local=False, **kwargs):
             structs['HVAC'] = thermostat.HVAC(a.zone, log=kwargs.get('log', True),
                                               schedule=kwargs.get('schedule', None))
             if kwargs.get('initial', False):
-                logging.info('Testing relays for HVAC.')
-                if verbosity >= 2:
-                    logging.info('Testing relays for HVAC.')
+                logging.debug('Testing relays for HVAC.')
                 structs['HVAC'].cycle_relays()
 
     return available_actions, available_sensors, structs
@@ -85,7 +83,7 @@ if __name__ == '__main__':
     dry_run = args.dry_run
     sleep = args.sleep
 
-    logging.info('Updating available actions and sensors.')
+    logging.debug('Updating available actions and sensors.')
 
     available_actions, available_sensors, structs = setup(log=log, verbosity=verbosity, initial=True)
 
@@ -95,7 +93,7 @@ if __name__ == '__main__':
 
         if i % (60 / sleep) == 0 or sleep > 60:  # update available sensors and actions every minute
 
-            logging.info('Updating available actions and sensors.')
+            logging.debug('Updating available actions and sensors.')
             try:
                 schedule = structs['HVAC'].schedule  # pass the existing schedule to HVAC if it is set
             except:

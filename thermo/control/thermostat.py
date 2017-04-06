@@ -50,8 +50,6 @@ class HVAC():
             GPIO.setup(self.heat_pin, GPIO.OUT)
             GPIO.setwarnings(True)
 
-            # atexit.register(self.turn_heat_off())
-
             @fallback_locally
             def get_action_id(local=False):
                 session = get_session(local=local)
@@ -93,10 +91,6 @@ class HVAC():
             self.schedule = schedule
         else:
             self.schedule = Schedule(self.zone)
-
-    def __del__(self):
-        logging.info('Destructing HVAC class')
-        self.turn_heat_off()
 
     @fallback_locally
     def retrieve_lags(self, local=False):
@@ -220,7 +214,7 @@ class HVAC():
         logging.info('Reading temperatures from database.')
         for i in indoor_temperatures:
 
-            logging.info("%s, %.1f" % (i[0], i[1]))
+            logging.debug("%s, %.1f" % (i[0], i[1]))
 
             if i[1] < 50:
                 i[1] = 50
@@ -483,7 +477,7 @@ def main(hvac, verbosity=0):
 
         deltas[room] = room_temps[room] - target
 
-        logging.info("%s: Tgt: %.2f, Obs: %.2f, Diff: %.2f" % (room, target, room_temps[room], deltas[room]))
+        logging.debug("%s: Tgt: %.2f, Obs: %.2f, Diff: %.2f" % (room, target, room_temps[room], deltas[room]))
 
     zone_target = float(np.median([val for key, val in current_targets.iteritems()]))
     zone_temp = float(np.median([val for key, val in room_temps.iteritems()]))
@@ -531,7 +525,6 @@ if __name__ == '__main__':
             time.sleep(10)
 
     except KeyboardInterrupt:
-        logging.info("Turning heat off.")
         if hvac.heat_relay_is_on():
             hvac.turn_heat_off()
         GPIO.cleanup()
