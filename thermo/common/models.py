@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine, Column, Float, DateTime, Integer, String, ForeignKey, Boolean, BLOB
 from sqlalchemy.ext.declarative import declarative_base
@@ -8,7 +9,6 @@ from thermo.local_settings import DATABASE, LOCAL_DATABASE_PATH, USER_NUMBER
 
 
 def get_engine(local=False):
-
     if local == True:
         connection_string = 'sqlite:///' + LOCAL_DATABASE_PATH
 
@@ -20,14 +20,15 @@ def get_engine(local=False):
     engine = create_engine(connection_string, echo=False)
     return engine
 
+
 def get_session(local=False):
     engine = get_engine(local=local)
     Session = sessionmaker(bind=engine)
     session = Session()
     return session
 
-def copy_data_to_local(user):
 
+def copy_data_to_local(user):
     def duplicate(type, obj):
         x = {k: v for k, v in obj.__dict__.iteritems() if k != '_sa_instance_state'}
         return type(**x)
@@ -53,14 +54,16 @@ def copy_data_to_local(user):
 
     return
 
+
 def duplicate_locally(function):
     """
     Call the function with the local SQLite database in addition to the remote database
     :param function:
     :return:
     """
+
     def wrapper(*args, **kwargs):
-        try :
+        try:
             function(*args, local=False, **kwargs)
         except Exception as e:
             logging.error('Failed using remote database.')
@@ -71,11 +74,12 @@ def duplicate_locally(function):
         except Exception as e:
             logging.info('Failed using local database.')
             logging.exception(e)
-            raise(e)
+            raise (e)
 
         return
 
     return wrapper
+
 
 def fallback_locally(function):
     """
@@ -83,8 +87,9 @@ def fallback_locally(function):
     :param function:
     :return:
     """
+
     def wrapper(*args, **kwargs):
-        try :
+        try:
             results = function(*args, local=False, **kwargs)
         except Exception as e:
             logging.error('Failed using remote database.')
@@ -95,11 +100,12 @@ def fallback_locally(function):
             except Exception as e:
                 logging.error('Failed using local database.')
                 logging.exception(e)
-                raise(e)
+                raise (e)
 
         return results
 
     return wrapper
+
 
 Base = declarative_base()
 
@@ -199,7 +205,6 @@ class Action(Base):
     expected_overshoot_above = Column(Float, nullable=False, default=0.)
     expected_overshoot_below = Column(Float, nullable=False, default=0.)
 
-
     def __repr__(self):
         return "{0}: {1} {2} {3}".format(self.id, self.name, self.unit, self.zone)
 
@@ -226,6 +231,13 @@ class Message(Base):
     received = Column(Boolean, nullable=False, default=False)
     type = Column(String(250), nullable=False)
     unit = Column(Integer, ForeignKey('unit.id'), index=True, nullable=True)
+
+
+def clean_old_temps_from_local():
+    session = get_session(local=True)
+    session.query(Temperature).filter(Temperature.record_time < datetime.now() - timedelta(hours=2)).delete()
+    session.commit()
+    session.close()
 
 
 if __name__ == '__main__':

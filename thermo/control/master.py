@@ -1,5 +1,7 @@
 import time
 
+import RPi.GPIO as GPIO
+
 from thermo import local_settings
 from thermo.common.models import *
 from thermo.control import thermostat
@@ -18,7 +20,14 @@ def main(available_actions, available_sensors, structs, **kwargs):
             validate=kwargs.get('validate', True)
         )
     except Exception as e:
-        logging.error('thermal.main error: {0}'.format(e.message))
+        logging.error('thermal.main error')
+        logging.exception(e)
+
+    try:
+        clean_old_temps_from_local()
+    except Exception as e:
+        logging.error('Encountered an error while removing old temperatures from the local db.')
+        logging.exception(e)
 
     for a in available_actions:
         if a.name == 'HEAT':
@@ -82,6 +91,16 @@ if __name__ == '__main__':
     log = args.disable_log
     dry_run = args.dry_run
     sleep = args.sleep
+
+    # This is done as a precaution to avoid a runaway furnace. In the event that an uncaught exception causes thermoPi
+    # to crash, it is possible that the furnace relay will be in the 'on' position. The script, upon restarting, may
+    # not be able to resume the thermostat control program. This block ensures that the heat relay is switched off
+    # in such a circumstance.
+    if 'HEAT' in local_settings.GPIO_PINS:
+        GPIO.setwarnings(False)
+        GPIO.setup(local_settings.GPIO_PINS['HEAT'], GPIO.OUT)
+        GPIO.setwarnings(True)
+        GPIO.output(local_settings.GPIO_PINS['HEAT'], GPIO.LOW)
 
     logging.debug('Updating available actions and sensors.')
 
