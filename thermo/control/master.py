@@ -97,6 +97,7 @@ if __name__ == '__main__':
     # not be able to resume the thermostat control program. This block ensures that the heat relay is switched off
     # in such a circumstance.
     if 'HEAT' in local_settings.GPIO_PINS:
+        GPIO.setmode(local_settings.GPIO_MODE)
         GPIO.setwarnings(False)
         GPIO.setup(local_settings.GPIO_PINS['HEAT'], GPIO.OUT)
         GPIO.setwarnings(True)
