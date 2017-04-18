@@ -204,6 +204,7 @@ class Action(Base):
     zone = Column(Integer, ForeignKey('zone.id'), index=True)
     expected_overshoot_above = Column(Float, nullable=False, default=0.)
     expected_overshoot_below = Column(Float, nullable=False, default=0.)
+    enabled = Column(Boolean, default=True)
 
     def __repr__(self):
         return "{0}: {1} {2} {3}".format(self.id, self.name, self.unit, self.zone)

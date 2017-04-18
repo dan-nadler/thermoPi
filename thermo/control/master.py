@@ -59,7 +59,15 @@ def setup(local=False, **kwargs):
     session.close()
 
     structs = {}
-    for a in available_actions:
+    for i in range(len(available_actions)):
+        a = available_actions[i]
+        logging.debug('Action %s' % a.name)
+
+        if a.enabled == False:
+            logging.debug('Action disabled.')
+            del available_actions[i]
+            continue
+
         if a.name == 'HEAT':
             structs['HVAC'] = thermostat.HVAC(a.zone, log=kwargs.get('log', True),
                                               schedule=kwargs.get('schedule', None))

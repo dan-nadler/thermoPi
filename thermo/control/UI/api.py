@@ -1,5 +1,4 @@
 import json
-from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
@@ -348,3 +347,30 @@ def check_local(request, token=None):
             return
         else:
             raise Exception('Failed to validate.')
+
+
+@duplicate_locally
+def toggle_action(action_id, local=False):
+    session = get_session(local=local)
+    actions = session.query(Action).filter(Action.id == action_id).all()
+
+    if len(actions) > 1:
+        raise ValueError('Multiple actions found')
+
+    actions[0].enabled = not actions[0].enabled
+    result = actions[0].enabled
+
+    session.commit()
+    session.close()
+    return result
+
+
+@fallback_locally
+def action_is_enabled(action_id, local=False):
+    session = get_session(local=local)
+    actions = session.query(Action).filter(Action.id == action_id).all()
+
+    if len(actions) > 1:
+        raise ValueError('Multiple actions found')
+
+    return actions[0].enabled
