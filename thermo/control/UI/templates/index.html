@@ -94,6 +94,9 @@
                 {% elif heat_action == True %}
                     <input type="submit" class="btn btn-success" aria-pressed="false" value="Heat is Enabled"/>
                 {% endif %}
+                {% if controltoken != '' %}
+                    <input type="hidden" name="controltoken" value="{{ controltoken }}"/>
+                {% endif %}
             </form>
             <a href="./schedule"><h2>View Schedules</h2></a>
         </div>
