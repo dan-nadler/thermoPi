@@ -7,6 +7,8 @@ from thermo.common.models import *
 from thermo.control.thermostat import Schedule
 from thermo.sensor.thermal import read_temp_sensor
 
+import pandas as pd
+
 
 @duplicate_locally
 def set_constant_temperature(user, zone, temperature, expiration, local=False):
@@ -374,3 +376,67 @@ def action_is_enabled(action_id, local=False):
         raise ValueError('Multiple actions found')
 
     return actions[0].enabled
+
+
+def get_temperature_sample(user,
+                           indoor_sensor,
+                           outdoor_sensor,
+                           outdoor_temperature=(30, 32),
+                           date_window=(datetime(2016, 1, 1), datetime.now())):
+
+    session = get_session()
+    q = session.query(
+        Temperature.record_time,
+        Temperature.location,
+        Temperature.value,
+    ) \
+        .filter(date_window[0] <= Temperature.record_time <= date_window[1])\
+        .join(Sensor) \
+        .filter(Sensor.user == user) \
+        .filter(Sensor.location == indoor_sensor or Sensor.location == outdoor_sensor) \
+        .filter(Sensor.location == outdoor_sensor and
+                outdoor_temperature[0] <= Temperature.value <= outdoor_temperature[1]) \
+        .group_by(Temperature.location) \
+        .all()
+    df = pd.read_sql(q.statement, q.session.bind)
+    session.close()
+
+    df = df.reset_index().pivot_table(index='record_time', columns='location', values='value')
+
+    return df
+
+
+def build_features(dataframe, interior_sensor, exterior_sensor):
+    """
+    Create the independent variables to use for model training.
+
+    :param dataframe:
+    :param interior_sensor:
+    :param exterior_sensor:
+    :return: DataFrame
+    """
+
+    dataframe = dataframe.resample('1m').mean()
+    df = pd.DataFrame(index=dataframe.index, columns=dataframe.columns)
+
+    # current temp
+    df['T0'] = dataframe[interior_sensor]
+
+    # temp 1 minute ago
+    df['T-1'] = dataframe[interior_sensor].shift(1)
+
+    # change in temp (1 minute)
+    df['DT1'] = df['T0']  - df['T-1']
+
+    # change in temp > 0
+    df['DT1>0'] = df['DT1'] > 0
+
+    # seconds since last peak
+    peaks = df['T0'].shift(-1) < df['T0'] > df['T0'].shift(1)
+    peak_times = df[peaks].resample('1m').ffill()
+    df['P'] = peak_times - df.index
+
+    # exterior temp
+    df['E0'] = dataframe[exterior_sensor]
+
+    return df
