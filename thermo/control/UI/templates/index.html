@@ -66,7 +66,7 @@
             </div>
         </div>
 
-    <hr>
+        <hr>
 
         <div class="row">
             <form method="post" action="./schedule/set_active">
@@ -87,6 +87,16 @@
                     {% endif %}
                     <input type="submit" name="submit">
                 </h2>
+            </form>
+            <form method="post" action="./toggle_action/heat">
+                {% if heat_action == False %}
+                    <input type="submit" class="btn btn-danger" aria-pressed="false" value="Heat is Disabled"/>
+                {% elif heat_action == True %}
+                    <input type="submit" class="btn btn-success" aria-pressed="false" value="Heat is Enabled"/>
+                {% endif %}
+                {% if controltoken != '' %}
+                    <input type="hidden" name="controltoken" value="{{ controltoken }}"/>
+                {% endif %}
             </form>
             <a href="./schedule"><h2>View Schedules</h2></a>
         </div>

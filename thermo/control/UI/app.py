@@ -35,6 +35,7 @@ def index():
     next_target_temps = {room: target for room, (hour, target) in next_targets.iteritems()}
     status = get_action_status(local_settings.USER_NUMBER, zone)
     schedules = get_available_schedules(local_settings.USER_NUMBER, zone)
+    heat_status = action_is_enabled(1)
 
     context = {
         'current_temp': aggregate_temperatures(room_temps),
@@ -44,10 +45,25 @@ def index():
         'status': status,
         'active_schedule_name': schedule_name,
         'schedules': schedules,
-        'controltoken': request.args.get('controltoken', '')
+        'controltoken': request.args.get('controltoken', ''),
+        'heat_action': heat_status,
     }
 
     return render_template('index.html', **context)
+
+
+@app.route('/toggle_action/heat', methods=['POST'])
+def toggle_heat():
+    check_local(request, token=request.form.get('controltoken', False))
+    toggle_action(1)
+    ct = request.args.get('controltoken', None)
+
+    if ct is not None:
+        query_string = urllib.urlencode({'controltoken': ct})
+    else:
+        query_string = ''
+
+    return redirect(url_for('index') + '?' + query_string)
 
 
 @app.route('/schedule/set_active', methods=['POST'])

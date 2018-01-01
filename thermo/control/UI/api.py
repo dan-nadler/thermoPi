@@ -1,5 +1,4 @@
 import json
-from datetime import datetime, timedelta
 
 from sqlalchemy import func
 
@@ -267,13 +266,20 @@ def get_current_room_temperatures(user, zone, minutes=1):
         room_temps = {i[0]: i[1] for i in indoor_temperatures}
 
     except Exception as e:
-        print('Exception, falling back to local sensor.')
+        logging.exception('Exception, falling back to local sensor.')
         room_temps = {}
-        is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(
-            local_settings.FALLBACK['SERIAL NUMBER'])
-        if not is_on:
-            print('EMERGENCY: Fallback sensor unavailable!')
-            # TODO fallback to predictive model
+        try:
+            is_on, room_temps[local_settings.FALLBACK['LOCATION']] = read_temp_sensor(
+                local_settings.FALLBACK['SERIAL NUMBER'])
+            if not is_on:
+                raise Exception
+
+        except Exception as e2:
+            logging.error('EMERGENCY: Fallback sensor unavailable!')
+            logging.error('Parent Exception:')
+            logging.exception(e)
+            logging.error('Nested Exception:')
+            logging.exception(e2)
 
     return room_temps
 
@@ -342,3 +348,29 @@ def check_local(request, token=None):
         else:
             raise Exception('Failed to validate.')
 
+
+@duplicate_locally
+def toggle_action(action_id, local=False):
+    session = get_session(local=local)
+    actions = session.query(Action).filter(Action.id == action_id).all()
+
+    if len(actions) > 1:
+        raise ValueError('Multiple actions found')
+
+    actions[0].enabled = not actions[0].enabled
+    result = actions[0].enabled
+
+    session.commit()
+    session.close()
+    return result
+
+
+@fallback_locally
+def action_is_enabled(action_id, local=False):
+    session = get_session(local=local)
+    actions = session.query(Action).filter(Action.id == action_id).all()
+
+    if len(actions) > 1:
+        raise ValueError('Multiple actions found')
+
+    return actions[0].enabled
