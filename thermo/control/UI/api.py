@@ -406,7 +406,30 @@ def get_temperature_sample(user,
     return df
 
 
-def build_features(dataframe, interior_sensor, exterior_sensor):
+def get_temperature_via_api(user=1,
+                            zone=1,
+                            lookback=240,
+                            key='PLACEHOLDER',  # TODO
+                            verify=False
+                            ):
+    import requests
+
+    url = 'http://thermo.dev.lunchmodel.com/raw?lookback={2}&zone={1}&user={0}&key={3}'.format(user, zone, lookback, key)
+    r = requests.get(url, verify=verify)
+    d = r.text
+
+    df = pd.read_html(d)[0]
+
+    df.columns = df.columns.droplevel(1)
+    df.set_index('location', inplace=True, drop=True)
+    df.index = pd.to_datetime(df.index)
+
+    df = df.resample('20s').mean()
+
+    return df
+
+
+def build_features(dataframe, interior_sensor='Living Room (North Wall)', exterior_sensor='Outside (Street)'):
     """
     Create the independent variables to use for model training.
 
@@ -416,8 +439,7 @@ def build_features(dataframe, interior_sensor, exterior_sensor):
     :return: DataFrame
     """
 
-    dataframe = dataframe.resample('1m').mean()
-    df = pd.DataFrame(index=dataframe.index, columns=dataframe.columns)
+    df = pd.DataFrame(index=dataframe.index)
 
     # current temp
     df['T0'] = dataframe[interior_sensor]
@@ -429,12 +451,13 @@ def build_features(dataframe, interior_sensor, exterior_sensor):
     df['DT1'] = df['T0']  - df['T-1']
 
     # change in temp > 0
-    df['DT1>0'] = df['DT1'] > 0
+    df['DT1>0'] = df['DT1'] >= 0
 
     # seconds since last peak
-    peaks = df['T0'].shift(-1) < df['T0'] > df['T0'].shift(1)
-    peak_times = df[peaks].resample('1m').ffill()
-    df['P'] = peak_times - df.index
+    # peaks = df['T0'].shift(-1) < df['T0'] > df['T0'].shift(1)
+    df['isPeak'] = df['DT1>0'].shift(-1).rolling(3).apply(lambda x: x[0] < x[1] > x[2])
+    # peak_times = df[peaks].resample('1m').ffill()
+    # df['P'] = peak_times - df.index
 
     # exterior temp
     df['E0'] = dataframe[exterior_sensor]
